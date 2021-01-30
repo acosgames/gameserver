@@ -6,8 +6,6 @@ yarn-debug.log*
 yarn-error.log*
 
 
-forkoff-shared
-
 # Runtime data
 pids
 *.pid
