@@ -9,7 +9,7 @@
 // app.listen(8000)
 // console.log("Listening on port 8000");
 
-const profiler = require('./Profiler.js')
+const profiler = require('./forkoff-shared/util/Profiler.js')
 const { Worker } = require("worker_threads")
 // const workerpool = require('workerpool');
 // const pool = workerpool.pool();
