@@ -9,7 +9,7 @@
 // app.listen(8000)
 // console.log("Listening on port 8000");
 
-const profiler = require('forkoff-shared/util/Profiler.js')
+const profiler = require('fsg-shared/util/Profiler.js')
 profiler.Start("test");
 profiler.End("test");
 
