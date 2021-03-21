@@ -4,10 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "nodemon --inspect=10008 --watch . --watch ../fsg-shared/ --ignore ./sessions/ index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "fsg-shared": "file:../fsg-shared"
+    "fsg-shared": "file:../fsg-shared",
+    "vm2": "^3.9.2",
+    "websocket": "^1.0.33"
   },
   "author": "",
   "license": "ISC"

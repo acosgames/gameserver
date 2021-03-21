@@ -37,7 +37,7 @@ function runWorker(filename) {
 
 async function run() {
     profiler.Start('workerTest');
-    let state = await runWorker('./child.js');
+    let state = await runWorker('./src/child.js');
 
 }
 
