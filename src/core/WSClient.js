@@ -24,7 +24,7 @@ class WSClient {
         if (this.cbOpen) {
             this.cbOpen(this.client, event);
         }
-        console.log(event);
+        //console.log(event);
         console.log('WSClient Connected to Cluster');
 
         if (this.client.readyState == this.client.OPEN) {
