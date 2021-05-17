@@ -14,26 +14,28 @@ const vm = new VM({
     sandbox: { bundle },
 });
 
-const WSCluster = require("./core/cluster");
-
-async function connectToCluser() {
-    let cluster = await WSCluster.register();
-    if (cluster) {
-        await WSCluster.connectToCluster();
-    }
-}
-
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function runGameSandbox() {
+async function sandbox() {
     try {
 
-        //await connectToCluser();
+        parentPort.on('message', (msg) => {
+            console.log("Sandbox received: ", msg);
+        });
+
+        parentPort.on('close', () => {
+
+        });
+
+        parentPort.postMessage({ status: "created" });
 
         while (true) {
-            await sleep(1000);
+
+
+
+            await sleep(20);
         }
         // console.log("Starting Sandbox...");
         // let filepath = './dist/bundle.js';
@@ -52,15 +54,7 @@ async function runGameSandbox() {
     catch (e) {
         console.error(e);
     }
-    // callback(null, inp + ' BAR (' + process.pid + ')')
-}
-
-async function run() {
-    let result = await runGameSandbox();
-    parentPort.postMessage(result)
 }
 
 
-run();
-
-
+sandbox();

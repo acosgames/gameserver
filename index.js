@@ -10,38 +10,44 @@
 // console.log("Listening on port 8000");
 
 const profiler = require('fsg-shared/util/Profiler.js')
-profiler.Start("test");
-profiler.End("test");
+// profiler.Start("test");
+// profiler.End("test");
 
-const { Worker } = require("worker_threads")
+
+const WorkerManager = require('./src/core/workermanager');
+const wm = new WorkerManager();
+
+wm.connect();
+
+// const { Worker } = require("worker_threads")
 // const workerpool = require('workerpool');
 // const pool = workerpool.pool();
 
 // var nodejsApp = require('./child.js');
 
-function runWorker(filename) {
-    return new Promise((resolve, reject) => {
-        //first argument is filename of the worker
-        const worker = new Worker(filename, {});
-        worker.on("message", resolve) //This promise is gonna resolve when messages comes back from the worker thread
-        worker.on("error", reject)
-        worker.on("exit", code => {
-            if (code !== 0) {
-                reject(new Error(`Worker stopped with exit code ${code}`))
-            }
-            profiler.End('workerTest');
-        })
-        //worker.
-    })
-}
+// function runWorker(filename) {
+//     return new Promise((resolve, reject) => {
+//         //first argument is filename of the worker
+//         const worker = new Worker(filename, {});
+//         worker.on("message", resolve) //This promise is gonna resolve when messages comes back from the worker thread
+//         worker.on("error", reject)
+//         worker.on("exit", code => {
+//             if (code !== 0) {
+//                 reject(new Error(`Worker stopped with exit code ${code}`))
+//             }
+//             profiler.End('workerTest');
+//         })
+//         //worker.
+//     })
+// }
 
-async function run() {
-    profiler.Start('workerTest');
-    let state = await runWorker('./src/child.js');
+// async function run() {
+//     profiler.Start('workerTest');
+//     let state = await runWorker('./src/child.js');
 
-}
+// }
 
-run();
+// run();
 
 // const workerFarm = require('worker-farm')
 //     , workers = workerFarm({
