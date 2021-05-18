@@ -18,11 +18,13 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+var index = workerData.index;
+
 async function sandbox() {
     try {
 
         parentPort.on('message', (msg) => {
-            console.log("Sandbox received: ", msg);
+            console.log("Sandbox [" + index + "] received: ", msg);
         });
 
         parentPort.on('close', () => {
@@ -32,8 +34,6 @@ async function sandbox() {
         parentPort.postMessage({ status: "created" });
 
         while (true) {
-
-
 
             await sleep(20);
         }

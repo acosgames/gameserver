@@ -42,46 +42,48 @@ module.exports = class WorkerManager {
         this.mq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
     }
 
-    onLoadGame(msg) {
+    async onLoadGame(msg) {
         let game_slug = msg.game_slug;
 
         let worker = this.games[game_slug];
-        if (!worker) {
-            this.createGame(msg);
+        if (!(game_slug in this.games)) {
+            await this.createGame(msg);
         }
     }
 
-    onNextAction(msg) {
+    async onNextAction(msg) {
 
         let game_slug = msg.game_slug;
         let room_slug = msg.room_slug;
 
         let worker = this.games[game_slug];
         if (!worker) {
-            this.createGame(msg);
+            await this.createGame(msg);
         }
 
         switch (msg.action) {
-            case 'join': {
-
+            case '_join': {
+                worker.postMessage(msg);
                 break;
             }
             default: {
+                worker.postMessage(msg);
                 break;
             }
         }
     }
 
-    createGame(msg) {
+    async createGame(msg) {
         let game_slug = msg.game_slug;
         let room_slug = msg.room_slug;
 
         let worker = this.workers[this.nextWorker];
         this.games[game_slug] = worker;
 
-        this.mq.subscribeQueue(game_slug, (gameMessage) => {
+        await this.mq.subscribeQueue(game_slug, (gameMessage) => {
             gameMessage.game_slug = game_slug;
             this.onNextAction(gameMessage);
+            return true;
         });
         this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
@@ -90,14 +92,14 @@ module.exports = class WorkerManager {
 
     createWorkers() {
         for (var i = 0; i < cpuCount; i++) {
-            this.workers.push(this.createWorker());
+            this.workers.push(this.createWorker(i));
         }
     }
 
-    createWorker() {
-        const worker = new Worker('./src/core/worker.js', {});
+    createWorker(index) {
+        const worker = new Worker('./src/core/worker.js', { workerData: { index } });
         worker.on("message", (msg) => {
-            console.log("WorkerManager received: ", msg);
+            console.log("WorkerManager [" + index + "] received: ", msg);
         });
         worker.on("online", (err) => {
 
@@ -107,6 +109,7 @@ module.exports = class WorkerManager {
         })
         worker.on("exit", code => {
             if (code !== 0) {
+                console.error(code);
                 throw new Error(`Worker stopped with exit code ${code}`)
             }
         })
