@@ -77,6 +77,10 @@ module.exports = class WorkerManager {
         let game_slug = msg.game_slug;
         let room_slug = msg.room_slug;
 
+        if (this.games[game_slug]) {
+            return;
+        }
+
         let worker = this.workers[this.nextWorker];
         this.games[game_slug] = worker;
 
@@ -105,7 +109,7 @@ module.exports = class WorkerManager {
 
         })
         worker.on("error", (err) => {
-
+            console.error(err);
         })
         worker.on("exit", code => {
             if (code !== 0) {
