@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "fsg-shared": "file:../fsg-shared",
+    "node-cache": "^5.1.2",
     "queue-fifo": "^0.2.6",
     "vm2": "^3.9.2",
     "websocket": "^1.0.33"

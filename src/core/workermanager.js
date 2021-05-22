@@ -22,6 +22,7 @@ module.exports = class WorkerManager {
         this.games = {};
 
         this.redis = RedisService;
+        this.redisCred = null;
         this.mq = rabbitmq;
 
         this.nextWorker = 0;
@@ -30,12 +31,11 @@ module.exports = class WorkerManager {
     }
 
     async connect() {
-
-        await this.createWorkers();
-
         await this.registerOnline();
         await this.connectToRedis();
         await this.connectToMQ();
+
+        await this.createWorkers();
 
         //this.mq.subscribe('gameserver', 'hasgame', this.onHasGame.bind(this));
         this.mq.subscribeQueue('nextAction', this.onNextAction.bind(this));
@@ -101,7 +101,7 @@ module.exports = class WorkerManager {
     }
 
     createWorker(index) {
-        const worker = new Worker('./src/core/worker.js', { workerData: { index } });
+        const worker = new Worker('./src/core/worker.js', { workerData: { index, redisCred: this.redisCred } });
         worker.on("message", (msg) => {
             console.log("WorkerManager [" + index + "] received: ", msg);
         });
@@ -172,10 +172,10 @@ module.exports = class WorkerManager {
         let parts = pubAddr.split(":");
         let host = parts[0];
         let port = parts[1];
-        let redisOptions = {
+        this.redisCred = {
             host, port
         }
 
-        this.redis.connect(redisOptions);
+        this.redis.connect(this.redisCred);
     }
 }
