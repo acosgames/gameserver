@@ -150,4 +150,4 @@ class FSGWorker {
 }
 
 
-sandbox();
+module.exports = new FSGWorker();
