@@ -45,7 +45,7 @@ module.exports = class WorkerManager {
     async onLoadGame(msg) {
         let game_slug = msg.game_slug;
 
-        let worker = this.games[game_slug];
+        // let worker = this.games[game_slug];
         if (!(game_slug in this.games)) {
             await this.createGame(msg);
         }
@@ -53,45 +53,31 @@ module.exports = class WorkerManager {
 
     async onNextAction(msg) {
 
-        let game_slug = msg.game_slug;
-        let room_slug = msg.room_slug;
-
-        let worker = this.games[game_slug];
+        let worker = this.games[msg.game_slug];
         if (!worker) {
             await this.createGame(msg);
         }
 
-        switch (msg.action) {
-            case '_join': {
-                worker.postMessage(msg);
-                break;
-            }
-            default: {
-                worker.postMessage(msg);
-                break;
-            }
-        }
+        worker.postMessage(msg);
     }
 
     async createGame(msg) {
         let game_slug = msg.game_slug;
-        let room_slug = msg.room_slug;
 
-        if (this.games[game_slug]) {
+        if (game_slug in this.games) {
             return;
         }
-
-        let worker = this.workers[this.nextWorker];
-        this.games[game_slug] = worker;
 
         await this.mq.subscribeQueue(game_slug, (gameMessage) => {
             gameMessage.game_slug = game_slug;
             this.onNextAction(gameMessage);
             return true;
         });
-        this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
-        worker.postMessage({ action: 'create', payload: msg });
+        let worker = this.workers[this.nextWorker];
+        this.games[game_slug] = worker;
+
+        this.nextWorker = (this.nextWorker + 1) % this.workers.length;
     }
 
     createWorkers() {
@@ -120,8 +106,6 @@ module.exports = class WorkerManager {
 
         return worker;
     }
-
-
 
     async registerOnline() {
 
