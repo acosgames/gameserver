@@ -57,11 +57,13 @@ class FSGWorker {
         this.games = {};
         this.rooms = {};
         this.roomCache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
+
+        this.start();
     }
 
     async onAction(msg) {
 
-        if (!msg.action || !msg.action.type) {
+        if (!msg.type) {
             console.error("Not an action: ", msg);
             return;
         }
@@ -99,10 +101,10 @@ class FSGWorker {
 
             await redis.connect(redisCred);
 
-            parentPort.on('message', onMessage);
-            parentPort.on('close', onClose);
+            parentPort.on('message', this.onAction.bind(this));
+            parentPort.on('close', this.onClose.bind(this));
             parentPort.postMessage({ status: "READY" });
-            process.on('uncaughtException', onException)
+            process.on('uncaughtException', this.onException)
 
             while (true) {
 
@@ -111,7 +113,7 @@ class FSGWorker {
                     continue;
                 }
 
-                mainLoop();
+                this.mainLoop();
             }
         }
         catch (e) {

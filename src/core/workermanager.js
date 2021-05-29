@@ -55,8 +55,10 @@ module.exports = class WorkerManager {
 
         let worker = this.games[msg.game_slug];
         if (!worker) {
-            await this.createGame(msg);
+            worker = await this.createGame(msg);
         }
+        if(!worker)
+            return;
 
         worker.postMessage(msg);
     }
@@ -78,6 +80,7 @@ module.exports = class WorkerManager {
         this.games[game_slug] = worker;
 
         this.nextWorker = (this.nextWorker + 1) % this.workers.length;
+        return worker;
     }
 
     createWorkers() {
