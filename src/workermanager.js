@@ -43,43 +43,50 @@ module.exports = class WorkerManager {
     }
 
     async onLoadGame(msg) {
-        let game_slug = msg.game_slug;
+        let game_slug = msg.meta.game_slug;
 
         // let worker = this.games[game_slug];
         if (!(game_slug in this.games)) {
             await this.createGame(msg);
         }
+
+        return true;
     }
 
     async onNextAction(msg) {
 
-        let worker = this.games[msg.game_slug];
+        let worker = this.games[msg.meta.game_slug];
         if (!worker) {
             worker = await this.createGame(msg);
         }
-        if(!worker)
-            return;
+        if (!worker)
+            return false;
 
         worker.postMessage(msg);
+        return true;
     }
 
     async createGame(msg) {
-        let game_slug = msg.game_slug;
+        let game_slug = msg.meta.game_slug;
 
         if (game_slug in this.games) {
             return;
         }
 
-        await this.mq.subscribeQueue(game_slug, (gameMessage) => {
-            gameMessage.game_slug = game_slug;
-            this.onNextAction(gameMessage);
-            return true;
-        });
-
         let worker = this.workers[this.nextWorker];
         this.games[game_slug] = worker;
 
         this.nextWorker = (this.nextWorker + 1) % this.workers.length;
+
+        await this.mq.subscribeQueue(game_slug, (gameMessage) => {
+            if (!gameMessage.meta)
+                gameMessage.meta = {}
+            gameMessage.meta.game_slug = game_slug;
+            this.onNextAction(gameMessage);
+            return true;
+        });
+
+
         return worker;
     }
 
@@ -90,9 +97,17 @@ module.exports = class WorkerManager {
     }
 
     createWorker(index) {
-        const worker = new Worker('./src/core/worker.js', { workerData: { index, redisCred: this.redisCred } });
+        const worker = new Worker('./src/worker.js', { workerData: { index, redisCred: this.redisCred } });
         worker.on("message", (msg) => {
             console.log("WorkerManager [" + index + "] received: ", msg);
+
+            if (msg.type == 'join') {
+                this.mq.publish('ws', 'onJoinResponse', msg);
+            }
+            else if (msg.type == 'update') {
+                this.mq.publish('ws', 'onRoomUpdate', msg);
+            }
+
         });
         worker.on("online", (err) => {
 

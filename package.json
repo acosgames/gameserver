@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon --inspect=10008 --watch . --watch ../fsg-shared/ --ignore ./sessions/ index.js",
-    "dev": "nodemon --inspect=10008 --watch . --watch ../fsg-shared/ --ignore ./sessions/ index.js",
+    "start": "nodemon --inspect=10008 --watch . --watch ../fsg-shared/ --ignore ./serverScripts index.js",
+    "dev": "nodemon --inspect=10008 --watch . --watch ../fsg-shared/ --ignore ./serverScripts index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
