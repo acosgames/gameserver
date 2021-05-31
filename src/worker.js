@@ -12,7 +12,7 @@ const s3 = new ObjectStorageService();
 var Queue = require('queue-fifo');
 // const { version } = require("os");
 
-var globalGame = null;
+var globalRoomState = null;
 var globalAction = {};
 var globalResult = null;
 var globalDone = null;
@@ -29,7 +29,7 @@ var globals = {
             console.error(e);
         }
     },
-    game: () => cloneObj(globalGame),
+    game: () => cloneObj(globalRoomState),
     action: () => cloneObj(globalAction),
     killGame: () => {
         globalDone = true;
@@ -63,7 +63,7 @@ class FSGWorker {
         this.actions = new Queue();
         this.gameHistory = [];
         this.games = {};
-        this.rooms = {};
+        this.roomStates = {};
         this.roomCache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
 
         this.start();
@@ -133,13 +133,14 @@ class FSGWorker {
         return this.games[key];
     }
 
-    async getRoomData(room_slug) {
-        let game = this.rooms[room_slug];
+    async getRoomState(room_slug) {
+        let game = this.roomStates[room_slug];
         if (!game) {
             game = await redis.get(room_slug);
         }
         if (!game)
             game = this.makeGame();
+        this.roomStates[room_slug] = game;
         return game;
     }
 
@@ -170,11 +171,11 @@ class FSGWorker {
             return;
         }
 
-        if (!(id in globalGame.players)) {
-            globalGame.players[id] = { name }
+        if (!(id in globalRoomState.players)) {
+            globalRoomState.players[id] = { name }
         }
         else {
-            globalGame.players[id].name = name;
+            globalRoomState.players[id].name = name;
         }
 
         parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
@@ -185,7 +186,7 @@ class FSGWorker {
         let meta = action.meta;
 
 
-        globalGame = await this.getRoomData(meta.room_slug);
+        globalRoomState = await this.getRoomState(meta.room_slug);
 
         switch (action.type) {
             case 'join':
@@ -200,11 +201,11 @@ class FSGWorker {
         delete action['meta'];
 
         this.runScript(game);
-        this.saveRoomData(meta, globalResult);
+        this.saveRoomState(meta, globalResult);
 
         if (typeof globalDone !== 'undefined' && globalDone) {
             globalResult.killGame = true;
-            this.makeGame(true);
+            // this.makeGame(true);
             globalDone = false;
         }
 
@@ -234,51 +235,53 @@ class FSGWorker {
     }
 
     makeGame(clearPlayers) {
-        if (!globalGame)
-            globalGame = {};
-        if (globalGame.killGame) {
-            delete globalGame['killGame'];
+        if (!globalRoomState)
+            globalRoomState = {};
+        if (globalRoomState.killGame) {
+            delete globalRoomState['killGame'];
         }
-        globalGame.state = {};
-        globalGame.rules = {};
-        globalGame.next = {};
-        globalGame.prev = {};
-        globalGame.events = [];
+        globalRoomState.state = {};
+        globalRoomState.rules = {};
+        globalRoomState.next = {};
+        globalRoomState.prev = {};
+        globalRoomState.events = [];
 
         if (clearPlayers) {
-            globalGame.players = {}
+            globalRoomState.players = {}
         }
         else {
             let newPlayers = {};
-            for (var id in globalGame.players) {
-                let player = globalGame.players[id];
+            for (var id in globalRoomState.players) {
+                let player = globalRoomState.players[id];
                 newPlayers[id] = {
                     name: player.name
                 }
             }
-            globalGame.players = newPlayers;
+            globalRoomState.players = newPlayers;
         }
-        return globalGame;
+        return globalRoomState;
     }
 
-    saveRoomData(meta, game) {
+    saveRoomState(meta, game) {
 
         let room_slug = meta.room_slug;
         let key = room_slug + '/meta';
+
+        this.roomStates[room_slug] = game;
 
         let playerList = Object.keys(game.players);
         let roomMeta = this.roomCache.get(key) || {};
         roomMeta.player_count = playerList.length;
 
-        this.roomCache.set(meta.room_slug, game)
-        redis.set(meta.room_slug, game);
+        this.roomCache.set(room_slug, game)
+        redis.set(room_slug, game);
 
         this.roomCache.set(key, roomMeta);
         redis.set(key, roomMeta);
 
 
         // this.gameHistory.push(game);
-        globalGame = JSON.parse(JSON.stringify(globalResult));
+        globalRoomState = JSON.parse(JSON.stringify(globalResult));
     }
 
 

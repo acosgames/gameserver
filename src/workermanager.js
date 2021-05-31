@@ -82,8 +82,7 @@ module.exports = class WorkerManager {
             if (!gameMessage.meta)
                 gameMessage.meta = {}
             gameMessage.meta.game_slug = game_slug;
-            this.onNextAction(gameMessage);
-            return true;
+            return this.onNextAction(gameMessage);
         });
 
 
@@ -104,7 +103,7 @@ module.exports = class WorkerManager {
             if (msg.type == 'join') {
                 this.mq.publish('ws', 'onJoinResponse', msg);
             }
-            else if (msg.type == 'update') {
+            else if (msg.type == 'update' || msg.type == 'finish') {
                 this.mq.publish('ws', 'onRoomUpdate', msg);
             }
 
