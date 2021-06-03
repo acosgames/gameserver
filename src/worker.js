@@ -198,10 +198,10 @@ class FSGWorker {
 
         switch (action.type) {
             case 'join':
-                this.onPlayerJoin(action);
+                await this.onPlayerJoin(action);
                 break;
             case 'leave':
-                r.removePlayerRoom()
+                await r.removePlayerRoom()
                 break;
             case 'reset':
                 globalRoomState = this.makeGame(false, globalRoomState);
