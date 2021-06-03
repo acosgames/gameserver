@@ -13,6 +13,9 @@ const RoomService = require('fsg-shared/services/room');
 const r = new RoomService();
 
 var Queue = require('queue-fifo');
+
+const cache = require('fsg-shared/services/cache');
+
 // const { version } = require("os");
 
 var globalRoomState = null;
@@ -137,13 +140,18 @@ class FSGWorker {
     }
 
     async getRoomState(room_slug) {
-        let game = this.roomStates[room_slug];
+        let game = await cache.get(room_slug);
+        // let game = this.roomStates[room_slug];
+        // if (!game) {
+        //     game = await redis.get(room_slug);
+        // }
         if (!game) {
-            game = await redis.get(room_slug);
-        }
-        if (!game)
             game = this.makeGame(false, game);
-        this.roomStates[room_slug] = game;
+            await cache.set(room_slug, game);
+        }
+            
+        
+        //this.roomStates[room_slug] = game;
         return game;
     }
 
@@ -175,7 +183,7 @@ class FSGWorker {
         }
 
 
-        let roomState = await this.getRoomState(room_slug);
+        let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
         if (!(id in roomState.players)) {
             roomState.players[id] = { name }
             r.assignPlayerRoom(id, room_slug);
@@ -277,17 +285,21 @@ class FSGWorker {
 
         let key = room_slug + '/meta';
 
-        this.roomStates[room_slug] = roomState;
+        //this.roomStates[room_slug] = roomState;
 
         let playerList = Object.keys(roomState.players);
-        let roomMeta = this.roomCache.get(key) || {};
+        let roomMeta = cache.get(key) || 0;
+        //let roomMeta = this.roomCache.get(key) || {};
         roomMeta.player_count = playerList.length;
 
-        this.roomCache.set(room_slug, roomState)
-        redis.set(room_slug, roomState);
+        cache.set(room_slug, roomState);
+        cache.set(key, roomMeta);
 
-        this.roomCache.set(key, roomMeta);
-        redis.set(key, roomMeta);
+        // this.roomCache.set(room_slug, roomState)
+        // redis.set(room_slug, roomState);
+
+        // this.roomCache.set(key, roomMeta);
+        // redis.set(key, roomMeta);
 
         // globalRoomState = JSON.parse(JSON.stringify(globalResult));
     }
