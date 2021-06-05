@@ -28,18 +28,30 @@ module.exports = class WorkerManager {
         this.nextWorker = 0;
         this.workers = [];
 
+        this.setup();
+
     }
 
-    async connect() {
-        await this.registerOnline();
-        await this.connectToRedis();
-        await this.connectToMQ();
-
-        await this.createWorkers();
+    setup() {
+        if (!this.mq.isActive() || !this.redis.isActive) {
+            setTimeout(this.setup.bind(this), 2000);
+            return;
+        }
 
         //this.mq.subscribe('gameserver', 'hasgame', this.onHasGame.bind(this));
         this.mq.subscribeQueue('nextAction', this.onNextAction.bind(this));
         this.mq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
+    }
+
+
+    async connect() {
+        await this.registerOnline();
+        // await this.connectToRedis();
+        // await this.connectToMQ();
+
+        await this.createWorkers();
+
+
     }
 
     async onLoadGame(msg) {
@@ -139,44 +151,44 @@ module.exports = class WorkerManager {
     }
 
 
-    async connectToMQ(options) {
+    // async connectToMQ(options) {
 
-        let clusters = this.server.clusters;
-        //choose a random MQ server within our zone
-        let mqs = clusters.filter(v => v.instance_type == 5);
-        this.mqCred = mqs[Math.floor(Math.random() * mqs.length)];
-        let pubAddr = this.mqCred.public_addr;
-        let privAddr = this.mqCred.private_addr;
-        let parts = pubAddr.split(":");
-        let host = parts[0];
-        let port = parts[1];
-        host = "amqp://" + this.credentials.platform.mqCluster.user + ":" + this.credentials.platform.mqCluster.pass + "@" + host + ":" + port;
-        let mqOpts = {
-            host
-        }
+    //     let clusters = this.server.clusters;
+    //     //choose a random MQ server within our zone
+    //     let mqs = clusters.filter(v => v.instance_type == 5);
+    //     this.mqCred = mqs[Math.floor(Math.random() * mqs.length)];
+    //     let pubAddr = this.mqCred.public_addr;
+    //     let privAddr = this.mqCred.private_addr;
+    //     let parts = pubAddr.split(":");
+    //     let host = parts[0];
+    //     let port = parts[1];
+    //     host = "amqp://" + this.credentials.platform.mqCluster.user + ":" + this.credentials.platform.mqCluster.pass + "@" + host + ":" + port;
+    //     let mqOpts = {
+    //         host
+    //     }
 
-        this.mq.connect(mqOpts);
-    }
+    //     this.mq.connect(mqOpts);
+    // }
 
-    async connectToRedis(options) {
-        if (!this.server || !this.server.clusters) {
-            setTimeout(() => { this.connect(options) }, this.credentials.platform.retryTime);
-            return;
-        }
+    // async connectToRedis(options) {
+    //     if (!this.server || !this.server.clusters) {
+    //         setTimeout(() => { this.connect(options) }, this.credentials.platform.retryTime);
+    //         return;
+    //     }
 
-        let clusters = this.server.clusters;
-        //choose a random Redis server within our zone
-        let redises = clusters.filter(v => v.instance_type == 2);
-        this.cluster = redises[Math.floor(Math.random() * redises.length)];
-        let pubAddr = this.cluster.public_addr;
-        let privAddr = this.cluster.private_addr;
-        let parts = pubAddr.split(":");
-        let host = parts[0];
-        let port = parts[1];
-        this.redisCred = {
-            host, port
-        }
+    //     let clusters = this.server.clusters;
+    //     //choose a random Redis server within our zone
+    //     let redises = clusters.filter(v => v.instance_type == 2);
+    //     this.cluster = redises[Math.floor(Math.random() * redises.length)];
+    //     let pubAddr = this.cluster.public_addr;
+    //     let privAddr = this.cluster.private_addr;
+    //     let parts = pubAddr.split(":");
+    //     let host = parts[0];
+    //     let port = parts[1];
+    //     this.redisCred = {
+    //         host, port
+    //     }
 
-        this.redis.connect(this.redisCred);
-    }
+    //     this.redis.connect(this.redisCred);
+    // }
 }

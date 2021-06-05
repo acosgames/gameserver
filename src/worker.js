@@ -9,8 +9,7 @@ const NodeCache = require("node-cache");
 const ObjectStorageService = require("fsg-shared/services/objectstorage");
 const s3 = new ObjectStorageService();
 
-const RoomService = require('fsg-shared/services/room');
-const r = new RoomService();
+const r = require('fsg-shared/services/room');
 
 var Queue = require('queue-fifo');
 
@@ -149,8 +148,8 @@ class FSGWorker {
             game = this.makeGame(false, game);
             await cache.set(room_slug, game);
         }
-            
-        
+
+
         //this.roomStates[room_slug] = game;
         return game;
     }
@@ -189,7 +188,7 @@ class FSGWorker {
             r.assignPlayerRoom(id, room_slug);
         }
         else {
-            roomState.players[id].name = name;
+            roomState.payload.players[id].name = name;
         }
 
         this.saveRoomState(room_slug, roomState);
