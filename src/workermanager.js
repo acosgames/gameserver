@@ -12,6 +12,8 @@ const rabbitmq = require('fsg-shared/services/rabbitmq');
 const os = require('os')
 const cpuCount = Math.min(os.cpus().length - 1, 1);
 
+const profiler = require('fsg-shared/util/profiler')
+
 const { Worker } = require("worker_threads")
 
 module.exports = class WorkerManager {
@@ -66,7 +68,7 @@ module.exports = class WorkerManager {
     }
 
     async onNextAction(msg) {
-
+        profiler.StartTime('WorkerManagerLoop');
         let worker = this.games[msg.meta.game_slug];
         if (!worker) {
             worker = await this.createGame(msg);
@@ -82,7 +84,7 @@ module.exports = class WorkerManager {
         let game_slug = msg.meta.game_slug;
 
         if (game_slug in this.games) {
-            return;
+            return null;
         }
 
         let worker = this.workers[this.nextWorker];
@@ -90,35 +92,35 @@ module.exports = class WorkerManager {
 
         this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
-        await this.mq.subscribeQueue(game_slug, (gameMessage) => {
+        await this.mq.subscribeQueue(game_slug, async (gameMessage) => {
             if (!gameMessage.meta)
                 gameMessage.meta = {}
             gameMessage.meta.game_slug = game_slug;
-            return this.onNextAction(gameMessage);
+            return await this.onNextAction(gameMessage);
         });
 
 
         return worker;
     }
 
-    createWorkers() {
+    async createWorkers() {
         for (var i = 0; i < cpuCount; i++) {
-            this.workers.push(this.createWorker(i));
+            this.workers.push(await this.createWorker(i));
         }
     }
 
-    createWorker(index) {
+    async createWorker(index) {
         const worker = new Worker('./src/worker.js', { workerData: { index, redisCred: this.redisCred } });
-        worker.on("message", (msg) => {
-            console.log("WorkerManager [" + index + "] received: ", msg);
+        worker.on("message", async (msg) => {
+            // console.log("WorkerManager [" + index + "] received: ", msg);
 
             if (msg.type == 'join') {
-                this.mq.publish('ws', 'onJoinResponse', msg);
+                await this.mq.publish('ws', 'onJoinResponse', msg);
             }
             else if (msg.type == 'update' || msg.type == 'finish') {
-                this.mq.publish('ws', 'onRoomUpdate', msg);
+                await this.mq.publish('ws', 'onRoomUpdate', msg);
             }
-
+            profiler.EndTime('WorkerManagerLoop');
         });
         worker.on("online", (err) => {
 

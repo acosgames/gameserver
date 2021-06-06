@@ -76,6 +76,8 @@ class FSGWorker {
 
     async onAction(msg) {
 
+        profiler.StartTime('ActionLoop');
+
         if (!msg.type) {
             console.error("Not an action: ", msg);
             return;
@@ -105,7 +107,8 @@ class FSGWorker {
 
         }
 
-        console.log("Action Queued: ", msg);
+
+        //console.log("Action Queued: ", msg);
         this.actions.enqueue(msg);
     }
 
@@ -122,7 +125,7 @@ class FSGWorker {
             while (true) {
 
                 if (this.actions.size() == 0) {
-                    await sleep(20);
+                    await sleep(1);
                     continue;
                 }
 
@@ -181,17 +184,16 @@ class FSGWorker {
             return;
         }
 
-
-        let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
-        if (!(id in roomState.players)) {
-            roomState.players[id] = { name }
+        // let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
+        if (!(id in globalRoomState.players)) {
+            globalRoomState.players[id] = { name }
             r.assignPlayerRoom(id, room_slug);
         }
         else {
-            roomState.payload.players[id].name = name;
+            globalRoomState.players[id].name = name;
         }
 
-        this.saveRoomState(room_slug, roomState);
+        //this.saveRoomState(room_slug, roomState);
 
         parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
     }
@@ -200,7 +202,6 @@ class FSGWorker {
 
         let meta = action.meta;
 
-
         globalRoomState = await this.getRoomState(meta.room_slug);
 
         switch (action.type) {
@@ -208,7 +209,14 @@ class FSGWorker {
                 await this.onPlayerJoin(action);
                 break;
             case 'leave':
-                await r.removePlayerRoom()
+                try {
+                    await r.removePlayerRoom(action.user.id, meta.room_slug)
+                }
+                catch (e) {
+                    console.error(e);
+                    return;
+                }
+
                 break;
             case 'reset':
                 globalRoomState = this.makeGame(false, globalRoomState);
@@ -225,13 +233,14 @@ class FSGWorker {
             globalDone = false;
         }
 
-        this.saveRoomState(meta.room_slug, globalResult);
+        this.saveRoomState(action, meta, globalResult);
 
         let type = 'update';
         if (globalResult.killGame == true)
             type = 'finish';
 
         parentPort.postMessage({ type, meta, payload: globalResult });
+        profiler.EndTime('ActionLoop');
     }
 
     runScript(script) {
@@ -280,19 +289,28 @@ class FSGWorker {
         return roomState;
     }
 
-    saveRoomState(room_slug, roomState) {
-
+    async saveRoomState(action, meta, roomState) {
+        let room_slug = meta.room_slug;
         let key = room_slug + '/meta';
 
         //this.roomStates[room_slug] = roomState;
 
-        let playerList = Object.keys(roomState.players);
-        let roomMeta = cache.get(key) || 0;
         //let roomMeta = this.roomCache.get(key) || {};
-        roomMeta.player_count = playerList.length;
+        if (action.type == 'join' || action.type == 'leave') {
+            let roomMeta = await cache.get(key) || 0;
+            let playerList = Object.keys(roomState.players);
+            roomMeta.player_count = playerList.length;
 
-        cache.set(room_slug, roomState);
-        cache.set(key, roomMeta);
+            try {
+                await r.updateRoomPlayerCount(room_slug, playerList.length);
+            }
+            catch (e) {
+                console.error(e);
+            }
+            cache.set(key, roomMeta);
+        }
+
+        cache.set(room_slug, roomState, 6000);
 
         // this.roomCache.set(room_slug, roomState)
         // redis.set(room_slug, roomState);
