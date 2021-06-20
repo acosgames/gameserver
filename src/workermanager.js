@@ -117,7 +117,7 @@ module.exports = class WorkerManager {
             if (msg.type == 'join') {
                 await this.mq.publish('ws', 'onJoinResponse', msg);
             }
-            else if (msg.type == 'update' || msg.type == 'finish') {
+            else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
                 await this.mq.publish('ws', 'onRoomUpdate', msg);
             }
             profiler.EndTime('WorkerManagerLoop');
