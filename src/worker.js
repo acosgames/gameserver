@@ -94,6 +94,23 @@ class FSGWorker {
         if (!game_slug || !room_slug)
             return;
 
+        
+
+
+        if (msg.type == 'join') {
+
+        }
+
+
+        //console.log("Action Queued: ", msg);
+        this.actions.enqueue(msg);
+    }
+
+    async downloadServerFiles(msg) {
+        let game_slug = msg.meta.game_slug;
+        let room_slug = msg.meta.room_slug;
+        let version = msg.meta.version;
+
         try {
             let key = msg.meta.gameid + '/server.bundle.' + version + '.js';
             let script = await this.downloadGameJS(key);
@@ -115,15 +132,6 @@ class FSGWorker {
             console.error("Error: Database unable to be created for: ", msg);
             console.log('Error:', e);
         }
-
-
-        if (msg.type == 'join') {
-
-        }
-
-
-        //console.log("Action Queued: ", msg);
-        this.actions.enqueue(msg);
     }
 
     async start() {
@@ -173,12 +181,15 @@ class FSGWorker {
     }
 
     async mainLoop() {
+        console.time('mainLoop');
         let peeked = this.actions.peek();
 
         let action = this.actions.dequeue();
         if (!action.meta.game_slug) {
             return;
         }
+
+        await this.downloadServerFiles(action);
         let key = action.meta.gameid + '/server.bundle.' + action.meta.version + '.js';
         let game = await this.getGame(key);
         if (!game) {
@@ -187,6 +198,7 @@ class FSGWorker {
         }
 
         this.runAction(action, game);
+        console.timeEnd('mainLoop');
     }
 
     async getDatabase(meta) {
@@ -269,7 +281,7 @@ class FSGWorker {
 
 
     async runAction(action, game) {
-
+        console.time('runAction');
         let meta = action.meta;
 
         globalRoomState = await this.getRoomState(meta.room_slug);
@@ -315,7 +327,7 @@ class FSGWorker {
 
         if (globalResult) {
             this.processTimelimit(globalResult.timer);
-            this.saveRoomState(action, meta, globalResult);
+            await this.saveRoomState(action, meta, globalResult);
         }
 
 
@@ -329,6 +341,7 @@ class FSGWorker {
 
         parentPort.postMessage({ type, meta, payload: globalResult });
         profiler.EndTime('ActionLoop');
+        console.timeEnd('runAction');
     }
 
     runScript(script) {
@@ -380,8 +393,8 @@ class FSGWorker {
     }
 
     async getRoomMeta(room_slug) {
-        let key = room_slug + '/meta';
-        let roomMeta = await cache.get(key) || await r.getRoomMeta(room_slug);
+        
+        let roomMeta = await r.findRoom(room_slug);
         if (!roomMeta) {
             return null;
         }
@@ -390,13 +403,12 @@ class FSGWorker {
 
     async saveRoomState(action, meta, roomState) {
         let room_slug = meta.room_slug;
-        let key = room_slug + '/meta';
 
         //this.roomStates[room_slug] = roomState;
 
         //let roomMeta = this.roomCache.get(key) || {};
         if (action.type == 'join' || action.type == 'leave') {
-            let roomMeta = await cache.get(key) || await r.getRoomMeta(room_slug);
+            let roomMeta = await this.getRoomMeta(room_slug);
             let playerList = Object.keys(roomState.players);
             roomMeta.player_count = playerList.length;
 
@@ -406,7 +418,7 @@ class FSGWorker {
             catch (e) {
                 console.error(e);
             }
-            cache.set(key, roomMeta);
+            //cache.set(room_slug + '/meta', roomMeta);
         }
 
         cache.set(room_slug, roomState, 6000);
