@@ -5,6 +5,7 @@ const { getLocalAddr } = require('fsg-shared/util/address');
 
 const InstanceLocalService = require('fsg-shared/services/instancelocal');
 const local = new InstanceLocalService();
+const redis = require('fsg-shared/services/redis');
 
 const RedisService = require('fsg-shared/services/redis');
 const rabbitmq = require('fsg-shared/services/rabbitmq');
@@ -16,12 +17,17 @@ const profiler = require('fsg-shared/util/profiler')
 
 const { Worker } = require("worker_threads")
 
+var PriorityQueue = require('priorityqueuejs');
+
+
+
 module.exports = class WorkerManager {
     constructor(credentials) {
 
         this.credentials = credentials || credutil();
 
         this.games = {};
+        this.cache = {};
 
         this.redis = RedisService;
         this.redisCred = null;
@@ -29,6 +35,10 @@ module.exports = class WorkerManager {
 
         this.nextWorker = 0;
         this.workers = [];
+
+        this.deadlines = new PriorityQueue(function (a, b) {
+            return b.end - a.end;
+        });
 
         this.setup();
 
@@ -43,6 +53,12 @@ module.exports = class WorkerManager {
         //this.mq.subscribe('gameserver', 'hasgame', this.onHasGame.bind(this));
         this.mq.subscribeQueue('nextAction', this.onNextAction.bind(this));
         this.mq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
+
+        setInterval(() => {
+
+            this.processDeadlines();
+
+        }, 500)
     }
 
 
@@ -119,6 +135,9 @@ module.exports = class WorkerManager {
             }
             else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
                 await this.mq.publish('ws', 'onRoomUpdate', msg);
+                if (!msg.payload.killGame && msg.payload.timer && msg.payload.timer.end) {
+                    this.addRoomDeadline(msg.meta, msg.payload.timer.end)
+                }
             }
             profiler.EndTime('WorkerManagerLoop');
         });
@@ -137,6 +156,71 @@ module.exports = class WorkerManager {
 
         return worker;
     }
+
+    async processDeadlines() {
+        try {
+            if (this.deadlines.size() == 0)
+                return;
+            let next = this.deadlines.peek();
+
+            let room_slug = next.room_slug;
+            let meta = await this.getTimerData(room_slug);
+            let now = (new Date()).getTime();
+
+            if (!meta || typeof meta.end == 'undefined' || meta.end != next.end) {
+                this.deadlines.deq();
+                return;
+            }
+
+            if (now < meta.end)
+                return;
+
+
+            let action = {
+                type: 'skip',
+                meta,
+            }
+            this.onNextAction(action);
+            this.deadlines.deq();
+            this.clearRoomDeadline(room_slug);
+            this.processDeadlines();
+        }
+        catch (e) {
+            console.error("ProcessTime Error: ", e)
+        }
+
+    }
+
+
+    async getTimerData(room_slug) {
+        let timerData = this.cache[room_slug + '/timer'];
+        if (typeof timerData === 'undefined') {
+            timerData = await redis.get(room_slug + '/timer');
+        }
+        return timerData;
+    }
+
+    async addRoomDeadline(meta, end) {
+        let room_slug = meta.room_slug;
+        let data = {
+            game_slug: meta.game_slug,
+            gameid: meta.gameid,
+            version: meta.version,
+            room_slug,
+            end,
+        }
+
+        this.cache[room_slug + '/timer'] = data;
+        // cache.set(room_slug + '/timer', data);
+        redis.set(room_slug + '/timer', data);
+        this.deadlines.enq({ end, room_slug })
+    }
+
+    async clearRoomDeadline(room_slug) {
+        delete this.cache[room_slug + '/timer'];
+        await redis.del(room_slug + '/timer');
+    }
+
 
     async registerOnline() {
 
