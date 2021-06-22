@@ -90,7 +90,7 @@ class FSGWorker {
 
     async onAction(msg) {
 
-        profiler.StartTime('ActionLoop');
+        console.time('ActionLoop');
 
         if (!msg.type) {
             console.error("Not an action: ", msg);
@@ -164,12 +164,14 @@ class FSGWorker {
     async startLoop() {
         while (true) {
 
-            if (this.actions.size() == 0) {
-                await sleep(0);
+            if (this.actions.size() > 0) {
+                this.mainLoop();
                 continue;
+                
             }
 
-            this.mainLoop();
+            await sleep(2);
+            // continue;
         }
     }
 
@@ -211,7 +213,7 @@ class FSGWorker {
             return;
         }
 
-        this.runAction(action, game);
+        await this.runAction(action, game);
         console.timeEnd('mainLoop');
     }
 
@@ -297,12 +299,16 @@ class FSGWorker {
     async runAction(action, game) {
         console.time('runAction');
         let meta = action.meta;
-
+        console.time('runAction-roomState');
         globalRoomState = await this.getRoomState(meta.room_slug);
+        console.timeEnd('runAction-roomState');
+        console.time('runAction-roomMeta');
         let roomMeta = await this.getRoomMeta(meta.room_slug);
-
+        console.timeEnd('runAction-roomMeta');
+        console.time('runAction-database');
         let db = await this.getDatabase(roomMeta);
-
+        console.timeEnd('runAction-database');
+        console.time('runAction-switch');
         switch (action.type) {
             case 'join':
                 await this.onPlayerJoin(action);
@@ -321,7 +327,7 @@ class FSGWorker {
                 globalRoomState = this.makeGame(false, globalRoomState);
                 break;
         }
-
+        
         let timeleft = this.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
             action.seq = globalRoomState.timer.seq || 0;
@@ -331,9 +337,11 @@ class FSGWorker {
         globalDatabase = db;
         globalAction = [action];
         delete action['meta'];
-
+        console.timeEnd('runAction-switch');
+        console.time('runAction-runScript');
         let succeeded = this.runScript(game);
-
+        console.timeEnd('runAction-runScript');
+        console.time('runAction-globalResult');
         if (typeof globalDone !== 'undefined' && globalDone) {
             globalResult.killGame = true;
             globalDone = false;
@@ -343,9 +351,8 @@ class FSGWorker {
             this.processTimelimit(globalResult.timer);
             await this.saveRoomState(action, meta, globalResult);
         }
-
-
-
+        console.timeEnd('runAction-globalResult');
+        console.time('runAction-publish');
         let type = 'update';
         if (globalResult.killGame == true)
             type = 'finish';
@@ -358,12 +365,16 @@ class FSGWorker {
 
         // }
         // profiler.EndTime('WorkerManagerLoop');
-
-        parentPort.postMessage({ type, meta, payload: globalResult });
-        profiler.EndTime('ActionLoop');
+        this.sendMessageToManager({ type, meta, payload: globalResult });
+        console.timeEnd('runAction-publish');
+        console.timeEnd('ActionLoop');
         console.timeEnd('runAction');
     }
 
+    async sendMessageToManager(msg) {
+        if( msg.type == 'update'  && msg.payload.timer && msg.payload.timer.end )
+            parentPort.postMessage(msg);
+    }
     runScript(script) {
         if (!script) {
             console.error("Game script is not loaded.");
@@ -371,11 +382,11 @@ class FSGWorker {
         }
 
         try {
-            profiler.StartTime('Game Logic');
+            console.time('Game Logic');
             {
                 vm.run(script);
             }
-            profiler.EndTime('Game Logic', 100);
+            console.timeEnd('Game Logic', 100);
             return true;
         }
         catch (e) {
@@ -433,7 +444,7 @@ class FSGWorker {
             roomMeta.player_count = playerList.length;
 
             try {
-                await r.updateRoomPlayerCount(room_slug, playerList.length);
+                r.updateRoomPlayerCount(room_slug, playerList.length);
             }
             catch (e) {
                 console.error(e);

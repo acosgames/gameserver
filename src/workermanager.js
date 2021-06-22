@@ -130,15 +130,17 @@ module.exports = class WorkerManager {
         worker.on("message", async (msg) => {
             // console.log("WorkerManager [" + index + "] received: ", msg);
 
-            if (msg.type == 'join') {
-                // await this.mq.publish('ws', 'onJoinResponse', msg);
+            if (msg.type == 'update' && msg.payload.timer && msg.payload.timer.end) {
+                this.addRoomDeadline(msg.meta, msg.payload.timer.end)
             }
-            else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
-                // await this.mq.publish('ws', 'onRoomUpdate', msg);
-                if (!msg.payload.killGame && msg.payload.timer && msg.payload.timer.end) {
-                    this.addRoomDeadline(msg.meta, msg.payload.timer.end)
-                }
-            }
+
+            // if (msg.type == 'join') {
+            //     // await this.mq.publish('ws', 'onJoinResponse', msg);
+            // }
+            // else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
+            //     // await this.mq.publish('ws', 'onRoomUpdate', msg);
+                
+            // }
             profiler.EndTime('WorkerManagerLoop');
         });
         worker.on("online", (err) => {
