@@ -131,10 +131,10 @@ module.exports = class WorkerManager {
             // console.log("WorkerManager [" + index + "] received: ", msg);
 
             if (msg.type == 'join') {
-                await this.mq.publish('ws', 'onJoinResponse', msg);
+                // await this.mq.publish('ws', 'onJoinResponse', msg);
             }
             else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
-                await this.mq.publish('ws', 'onRoomUpdate', msg);
+                // await this.mq.publish('ws', 'onRoomUpdate', msg);
                 if (!msg.payload.killGame && msg.payload.timer && msg.payload.timer.end) {
                     this.addRoomDeadline(msg.meta, msg.payload.timer.end)
                 }

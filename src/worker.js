@@ -4,6 +4,8 @@ const { VM, VMScript, NodeVM } = require('vm2');
 
 const profiler = require('fsg-shared/util/profiler')
 const redis = require('fsg-shared/services/redis');
+const rabbitmq = require('fsg-shared/services/rabbitmq');
+
 const NodeCache = require("node-cache");
 
 const ObjectStorageService = require("fsg-shared/services/objectstorage");
@@ -74,8 +76,16 @@ class FSGWorker {
         this.databases = {};
         this.roomStates = {};
         this.roomCache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
+        this.mq = rabbitmq;
 
         this.start();
+    }
+
+    setup() {
+        if (!this.mq.isActive() || !this.redis.isActive) {
+            setTimeout(this.setup.bind(this), 2000);
+            return;
+        }
     }
 
     async onAction(msg) {
@@ -94,7 +104,7 @@ class FSGWorker {
         if (!game_slug || !room_slug)
             return;
 
-        
+
 
 
         if (msg.type == 'join') {
@@ -144,18 +154,22 @@ class FSGWorker {
             parentPort.postMessage({ status: "READY" });
             process.on('uncaughtException', this.onException)
 
-            while (true) {
-
-                if (this.actions.size() == 0) {
-                    await sleep(1);
-                    continue;
-                }
-
-                this.mainLoop();
-            }
+            this.startLoop();
         }
         catch (e) {
             console.error(e);
+        }
+    }
+
+    async startLoop() {
+        while (true) {
+
+            if (this.actions.size() == 0) {
+                await sleep(0);
+                continue;
+            }
+
+            this.mainLoop();
         }
     }
 
@@ -243,8 +257,8 @@ class FSGWorker {
         }
 
         //this.saveRoomState(room_slug, roomState);
-
-        parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
+        this.mq.publish('ws', 'onJoinResponse', { type: 'join', payload: { id, room_slug } });
+        // parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
     }
 
     calculateTimeleft(roomState) {
@@ -339,6 +353,12 @@ class FSGWorker {
             type = 'error';
         }
 
+        // if (type == 'update' || type == 'finish' || type == 'error') {
+        this.mq.publish('ws', 'onRoomUpdate', { type, meta, payload: globalResult });
+
+        // }
+        // profiler.EndTime('WorkerManagerLoop');
+
         parentPort.postMessage({ type, meta, payload: globalResult });
         profiler.EndTime('ActionLoop');
         console.timeEnd('runAction');
@@ -393,7 +413,7 @@ class FSGWorker {
     }
 
     async getRoomMeta(room_slug) {
-        
+
         let roomMeta = await r.findRoom(room_slug);
         if (!roomMeta) {
             return null;
