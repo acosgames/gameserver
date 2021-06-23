@@ -78,6 +78,8 @@ class FSGWorker {
         this.roomCache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
         this.mq = rabbitmq;
 
+        this.isProcessing = false;
+
         this.start();
     }
 
@@ -90,7 +92,7 @@ class FSGWorker {
 
     async onAction(msg) {
 
-        console.time('ActionLoop');
+        // console.time('ActionLoop');
 
         if (!msg.type) {
             console.error("Not an action: ", msg);
@@ -114,6 +116,8 @@ class FSGWorker {
 
         //console.log("Action Queued: ", msg);
         this.actions.enqueue(msg);
+        this.tryDequeue();
+        // console.timeEnd('ActionLoop');
     }
 
     async downloadServerFiles(msg) {
@@ -144,6 +148,38 @@ class FSGWorker {
         }
     }
 
+    async tryDequeue() {
+        if (this.isProcessing || this.actions.size() == 0) {
+            return;
+        }
+        // console.time('tryDequeue');
+
+        this.isProcessing = true;
+
+        let peeked = this.actions.peek();
+
+        let action = this.actions.dequeue();
+        if (!action.meta.game_slug) {
+            this.tryDequeue();
+            return;
+        }
+
+        await this.downloadServerFiles(action);
+        let key = action.meta.gameid + '/server.bundle.' + action.meta.version + '.js';
+        let game = await this.getGame(key);
+        if (!game) {
+            this.actions.enqueue(action);
+            this.tryDequeue();
+            return;
+        }
+
+        await this.runAction(action, game);
+
+        this.isProcessing = false;
+        // console.timeEnd('tryDequeue');
+        this.tryDequeue();
+    }
+
     async start() {
         try {
 
@@ -154,7 +190,9 @@ class FSGWorker {
             parentPort.postMessage({ status: "READY" });
             process.on('uncaughtException', this.onException)
 
-            this.startLoop();
+            setInterval(() => { }, 100000000);
+
+            // this.startLoop();
         }
         catch (e) {
             console.error(e);
@@ -167,7 +205,7 @@ class FSGWorker {
             if (this.actions.size() > 0) {
                 this.mainLoop();
                 continue;
-                
+
             }
 
             await sleep(2);
@@ -197,24 +235,7 @@ class FSGWorker {
     }
 
     async mainLoop() {
-        console.time('mainLoop');
-        let peeked = this.actions.peek();
 
-        let action = this.actions.dequeue();
-        if (!action.meta.game_slug) {
-            return;
-        }
-
-        await this.downloadServerFiles(action);
-        let key = action.meta.gameid + '/server.bundle.' + action.meta.version + '.js';
-        let game = await this.getGame(key);
-        if (!game) {
-            this.actions.enqueue(action);
-            return;
-        }
-
-        await this.runAction(action, game);
-        console.timeEnd('mainLoop');
     }
 
     async getDatabase(meta) {
@@ -286,7 +307,7 @@ class FSGWorker {
         let sequence = timer.seq || 0;
         let now = (new Date()).getTime();
         let deadline = now + (seconds * 1000);
-        let timeleft = deadline - now;
+        // let timeleft = deadline - now;
 
         timer.end = deadline;
         timer.seconds = seconds;
@@ -297,18 +318,18 @@ class FSGWorker {
 
 
     async runAction(action, game) {
-        console.time('runAction');
+        // console.time('runAction');
         let meta = action.meta;
-        console.time('runAction-roomState');
+        // console.time('runAction-roomState');
         globalRoomState = await this.getRoomState(meta.room_slug);
-        console.timeEnd('runAction-roomState');
-        console.time('runAction-roomMeta');
+        // console.timeEnd('runAction-roomState');
+        // console.time('runAction-roomMeta');
         let roomMeta = await this.getRoomMeta(meta.room_slug);
-        console.timeEnd('runAction-roomMeta');
-        console.time('runAction-database');
+        // console.timeEnd('runAction-roomMeta');
+        // console.time('runAction-database');
         let db = await this.getDatabase(roomMeta);
-        console.timeEnd('runAction-database');
-        console.time('runAction-switch');
+        // console.timeEnd('runAction-database');
+        // console.time('runAction-switch');
         switch (action.type) {
             case 'join':
                 await this.onPlayerJoin(action);
@@ -327,7 +348,7 @@ class FSGWorker {
                 globalRoomState = this.makeGame(false, globalRoomState);
                 break;
         }
-        
+
         let timeleft = this.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
             action.seq = globalRoomState.timer.seq || 0;
@@ -337,22 +358,26 @@ class FSGWorker {
         globalDatabase = db;
         globalAction = [action];
         delete action['meta'];
-        console.timeEnd('runAction-switch');
-        console.time('runAction-runScript');
+        // console.timeEnd('runAction-switch');
+        // console.time('runAction-runScript');
         let succeeded = this.runScript(game);
-        console.timeEnd('runAction-runScript');
-        console.time('runAction-globalResult');
+        // console.timeEnd('runAction-runScript');
+        // console.time('runAction-globalResult');
         if (typeof globalDone !== 'undefined' && globalDone) {
             globalResult.killGame = true;
             globalDone = false;
         }
 
         if (globalResult) {
+            // console.time('runAction-timelimit');
             this.processTimelimit(globalResult.timer);
+            // console.timeEnd('runAction-timelimit');
+            // console.time('runAction-saveRoomState');
             await this.saveRoomState(action, meta, globalResult);
+            // console.timeEnd('runAction-saveRoomState');
         }
-        console.timeEnd('runAction-globalResult');
-        console.time('runAction-publish');
+        // console.timeEnd('runAction-globalResult');
+        // console.time('runAction-publish');
         let type = 'update';
         if (globalResult.killGame == true)
             type = 'finish';
@@ -366,13 +391,13 @@ class FSGWorker {
         // }
         // profiler.EndTime('WorkerManagerLoop');
         this.sendMessageToManager({ type, meta, payload: globalResult });
-        console.timeEnd('runAction-publish');
-        console.timeEnd('ActionLoop');
-        console.timeEnd('runAction');
+        // console.timeEnd('runAction-publish');
+        // console.timeEnd('ActionLoop');
+        // console.timeEnd('runAction');
     }
 
     async sendMessageToManager(msg) {
-        if( msg.type == 'update'  && msg.payload.timer && msg.payload.timer.end )
+        if (msg.type == 'update' && msg.payload.timer && msg.payload.timer.end)
             parentPort.postMessage(msg);
     }
     runScript(script) {
@@ -382,11 +407,11 @@ class FSGWorker {
         }
 
         try {
-            console.time('Game Logic');
+            // console.time('Game Logic');
             {
                 vm.run(script);
             }
-            console.timeEnd('Game Logic', 100);
+            // console.timeEnd('Game Logic', 100);
             return true;
         }
         catch (e) {

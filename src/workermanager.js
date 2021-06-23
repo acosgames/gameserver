@@ -84,7 +84,7 @@ module.exports = class WorkerManager {
     }
 
     async onNextAction(msg) {
-        profiler.StartTime('WorkerManagerLoop');
+        // console.time('WorkerManagerLoop');
         let worker = this.games[msg.meta.game_slug];
         if (!worker) {
             worker = await this.createGame(msg);
@@ -139,9 +139,9 @@ module.exports = class WorkerManager {
             // }
             // else if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error') {
             //     // await this.mq.publish('ws', 'onRoomUpdate', msg);
-                
+
             // }
-            profiler.EndTime('WorkerManagerLoop');
+            // console.timeEnd('WorkerManagerLoop');
         });
         worker.on("online", (err) => {
 
