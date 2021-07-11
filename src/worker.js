@@ -248,11 +248,11 @@ class FSGWorker {
             try {
                 let db = await this.downloadGameDatabase(key);
                 if (!db) {
-                    console.error("Database unable to be created for: ", msg);
+                    console.error("Database unable to be created for: ", meta);
                 }
                 return db;
             } catch (e) {
-                console.error("Error: Database unable to be created for: ", msg);
+                console.error("Error: Database unable to be created for: ", meta);
                 console.log('Error:', e);
             }
         }
@@ -318,18 +318,11 @@ class FSGWorker {
 
 
     async runAction(action, game) {
-        // console.time('runAction');
+        console.log('runAction', action);
         let meta = action.meta;
-        // console.time('runAction-roomState');
         globalRoomState = await this.getRoomState(meta.room_slug);
-        // console.timeEnd('runAction-roomState');
-        // console.time('runAction-roomMeta');
         let roomMeta = await this.getRoomMeta(meta.room_slug);
-        // console.timeEnd('runAction-roomMeta');
-        // console.time('runAction-database');
         let db = await this.getDatabase(roomMeta);
-        // console.timeEnd('runAction-database');
-        // console.time('runAction-switch');
         switch (action.type) {
             case 'join':
                 await this.onPlayerJoin(action);
@@ -358,26 +351,16 @@ class FSGWorker {
         globalDatabase = db;
         globalAction = [action];
         delete action['meta'];
-        // console.timeEnd('runAction-switch');
-        // console.time('runAction-runScript');
         let succeeded = this.runScript(game);
-        // console.timeEnd('runAction-runScript');
-        // console.time('runAction-globalResult');
         if (typeof globalDone !== 'undefined' && globalDone) {
             globalResult.killGame = true;
             globalDone = false;
         }
 
         if (globalResult) {
-            // console.time('runAction-timelimit');
             this.processTimelimit(globalResult.timer);
-            // console.timeEnd('runAction-timelimit');
-            // console.time('runAction-saveRoomState');
             await this.saveRoomState(action, meta, globalResult);
-            // console.timeEnd('runAction-saveRoomState');
         }
-        // console.timeEnd('runAction-globalResult');
-        // console.time('runAction-publish');
         let type = 'update';
         if (globalResult.killGame == true)
             type = 'finish';
@@ -391,9 +374,7 @@ class FSGWorker {
         // }
         // profiler.EndTime('WorkerManagerLoop');
         this.sendMessageToManager({ type, meta, payload: globalResult });
-        // console.timeEnd('runAction-publish');
         // console.timeEnd('ActionLoop');
-        // console.timeEnd('runAction');
     }
 
     async sendMessageToManager(msg) {

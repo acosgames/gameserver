@@ -130,8 +130,8 @@ module.exports = class WorkerManager {
         worker.on("message", async (msg) => {
             // console.log("WorkerManager [" + index + "] received: ", msg);
 
-            if (msg.type == 'update' && msg.payload.timer && msg.payload.timer.end) {
-                this.addRoomDeadline(msg.meta, msg.payload.timer.end)
+            if (msg.type == 'update' && msg.payload.timer) {
+                this.addRoomDeadline(msg.meta, msg.payload.timer)
             }
 
             // if (msg.type == 'join') {
@@ -202,20 +202,26 @@ module.exports = class WorkerManager {
         return timerData;
     }
 
-    async addRoomDeadline(meta, end) {
+    async addRoomDeadline(meta, timer) {
+
         let room_slug = meta.room_slug;
+        let curTimer = await this.getTimerData(room_slug);
+        if (curTimer && curTimer.seq == timer.seq)
+            return;
+
         let data = {
             game_slug: meta.game_slug,
             gameid: meta.gameid,
             version: meta.version,
             room_slug,
-            end,
+            seq: timer.seq,
+            end: timer.end,
         }
 
         this.cache[room_slug + '/timer'] = data;
         // cache.set(room_slug + '/timer', data);
         redis.set(room_slug + '/timer', data);
-        this.deadlines.enq({ end, room_slug })
+        this.deadlines.enq({ end: timer.end, room_slug })
     }
 
     async clearRoomDeadline(room_slug) {
