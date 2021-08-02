@@ -156,7 +156,7 @@ class FSGWorker {
 
         this.isProcessing = true;
 
-        let peeked = this.actions.peek();
+        // let peeked = this.actions.peek();
 
         let action = this.actions.dequeue();
         if (!action.meta.game_slug) {
@@ -280,7 +280,7 @@ class FSGWorker {
         }
 
         //this.saveRoomState(room_slug, roomState);
-        this.mq.publish('ws', 'onJoinResponse', { type: 'join', payload: { id, room_slug } });
+        // this.mq.publish('ws', 'onJoinResponse', { type: 'join', payload: { id, room_slug } });
         // parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
     }
 
@@ -367,6 +367,8 @@ class FSGWorker {
         if (!succeeded) {
             type = 'error';
         }
+        if (action.type == 'join')
+            type = 'join';
 
         // if (type == 'update' || type == 'finish' || type == 'error') {
         this.mq.publish('ws', 'onRoomUpdate', { type, meta, payload: globalResult });
