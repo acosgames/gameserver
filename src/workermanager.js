@@ -18,7 +18,7 @@ const profiler = require('fsg-shared/util/profiler')
 const { Worker } = require("worker_threads")
 
 var PriorityQueue = require('priorityqueuejs');
-
+const r = require('fsg-shared/services/room');
 
 
 module.exports = class WorkerManager {
@@ -72,8 +72,19 @@ module.exports = class WorkerManager {
 
     }
 
+    async getRoomMeta(room_slug) {
+
+        let meta = await r.findRoom(room_slug);
+        if (!meta) {
+            return null;
+        }
+        return meta;
+    }
+
     async onLoadGame(msg) {
-        let game_slug = msg.meta.game_slug;
+        let room_slug = msg.room_slug;
+        let meta = await this.getRoomMeta(room_slug);
+        let game_slug = meta.game_slug;
 
         // let worker = this.games[game_slug];
         if (!(game_slug in this.games)) {
@@ -85,7 +96,11 @@ module.exports = class WorkerManager {
 
     async onNextAction(msg) {
         // console.time('WorkerManagerLoop');
-        let worker = this.games[msg.meta.game_slug];
+        let room_slug = msg.room_slug;
+        let meta = await this.getRoomMeta(room_slug);
+        let game_slug = meta.game_slug;
+
+        let worker = this.games[game_slug];
         if (!worker) {
             worker = await this.createGame(msg);
         }
@@ -97,7 +112,9 @@ module.exports = class WorkerManager {
     }
 
     async createGame(msg) {
-        let game_slug = msg.meta.game_slug;
+        let room_slug = msg.room_slug;
+        let meta = await this.getRoomMeta(room_slug);
+        let game_slug = meta.game_slug;
 
         if (game_slug in this.games) {
             return null;
@@ -109,9 +126,6 @@ module.exports = class WorkerManager {
         this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
         await this.mq.subscribeQueue(game_slug, async (gameMessage) => {
-            if (!gameMessage.meta)
-                gameMessage.meta = {}
-            gameMessage.meta.game_slug = game_slug;
             return await this.onNextAction(gameMessage);
         });
 
@@ -131,7 +145,7 @@ module.exports = class WorkerManager {
             // console.log("WorkerManager [" + index + "] received: ", msg);
 
             if (msg.type == 'update' && msg.payload.timer) {
-                this.addRoomDeadline(msg.meta, msg.payload.timer)
+                this.addRoomDeadline(msg.room_slug, msg.payload.timer)
             }
 
             // if (msg.type == 'join') {
@@ -166,21 +180,21 @@ module.exports = class WorkerManager {
             let next = this.deadlines.peek();
 
             let room_slug = next.room_slug;
-            let meta = await this.getTimerData(room_slug);
+            let roomTimer = await this.getTimerData(room_slug);
             let now = (new Date()).getTime();
 
-            if (!meta || typeof meta.end == 'undefined' || meta.end != next.end) {
+            if (!roomTimer || typeof roomTimer.end == 'undefined' || roomTimer.end != next.end) {
                 this.deadlines.deq();
                 return;
             }
 
-            if (now < meta.end)
+            if (now < roomTimer.end)
                 return;
 
 
             let action = {
                 type: 'skip',
-                meta,
+                room_slug,
             }
             this.onNextAction(action);
             this.deadlines.deq();
@@ -202,17 +216,13 @@ module.exports = class WorkerManager {
         return timerData;
     }
 
-    async addRoomDeadline(meta, timer) {
+    async addRoomDeadline(room_slug, timer) {
 
-        let room_slug = meta.room_slug;
         let curTimer = await this.getTimerData(room_slug);
         if (curTimer && curTimer.seq == timer.seq)
             return;
 
         let data = {
-            game_slug: meta.game_slug,
-            gameid: meta.gameid,
-            version: meta.version,
             room_slug,
             seq: timer.seq,
             end: timer.end,

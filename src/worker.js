@@ -30,7 +30,6 @@ var globals = {
     finish: (newGame) => {
         try {
             globalResult = cloneObj(newGame);
-            //globalResult.meta = globalAction.meta;
         }
         catch (e) {
             console.error(e);
@@ -80,6 +79,7 @@ class FSGWorker {
 
         this.isProcessing = false;
 
+        console.log("Started worker: ", index);
         this.start();
     }
 
@@ -99,9 +99,12 @@ class FSGWorker {
             return;
         }
 
-        let game_slug = msg.meta.game_slug;
-        let room_slug = msg.meta.room_slug;
-        let version = msg.meta.version;
+
+
+        let room_slug = msg.room_slug;
+        let meta = await this.getRoomMeta(room_slug);
+        let game_slug = meta.game_slug;
+        let version = meta.version;
 
         if (!game_slug || !room_slug)
             return;
@@ -121,12 +124,13 @@ class FSGWorker {
     }
 
     async downloadServerFiles(msg) {
-        let game_slug = msg.meta.game_slug;
-        let room_slug = msg.meta.room_slug;
-        let version = msg.meta.version;
+        let room_slug = msg.room_slug;
+
+        let meta = await this.getRoomMeta(room_slug);
+
 
         try {
-            let key = msg.meta.gameid + '/server.bundle.' + version + '.js';
+            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
             let script = await this.downloadGameJS(key);
             if (!script) {
                 console.error("Script unable to be created for: ", msg);
@@ -136,8 +140,11 @@ class FSGWorker {
             console.log('Error:', e);
         }
 
+        if (!meta.db)
+            return;
+
         try {
-            let key = msg.meta.gameid + '/server.db.' + version + '.json';
+            let key = meta.gameid + '/server.db.' + meta.version + '.json';
             let db = await this.downloadGameDatabase(key);
             if (!db) {
                 console.error("Database unable to be created for: ", msg);
@@ -159,21 +166,24 @@ class FSGWorker {
         // let peeked = this.actions.peek();
 
         let action = this.actions.dequeue();
-        if (!action.meta.game_slug) {
+        if (!action.room_slug) {
             this.tryDequeue();
+            this.isProcessing = false;
             return;
         }
 
+        let meta = await this.getRoomMeta(action.room_slug);
         await this.downloadServerFiles(action);
-        let key = action.meta.gameid + '/server.bundle.' + action.meta.version + '.js';
+        let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
         let game = await this.getGame(key);
         if (!game) {
             this.actions.enqueue(action);
             this.tryDequeue();
+            this.isProcessing = false;
             return;
         }
 
-        await this.runAction(action, game);
+        await this.runAction(action, game, meta);
 
         this.isProcessing = false;
         // console.timeEnd('tryDequeue');
@@ -263,7 +273,7 @@ class FSGWorker {
     async onPlayerJoin(action) {
         let id = action.user.id;
         let name = action.user.name;
-        let room_slug = action.meta.room_slug;
+        let room_slug = action.room_slug;
 
         if (!id) {
             console.error("Invalid player: " + id);
@@ -273,7 +283,7 @@ class FSGWorker {
         // let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
         if (!(id in globalRoomState.players)) {
             globalRoomState.players[id] = { name }
-            r.assignPlayerRoom(id, room_slug);
+            r.assignPlayerRoom(id, room_slug, action.payload.game_slug);
         }
         else {
             globalRoomState.players[id].name = name;
@@ -317,19 +327,18 @@ class FSGWorker {
     }
 
 
-    async runAction(action, game) {
+    async runAction(action, game, meta) {
         console.log('runAction', action);
-        let meta = action.meta;
-        globalRoomState = await this.getRoomState(meta.room_slug);
-        let roomMeta = await this.getRoomMeta(meta.room_slug);
-        let db = await this.getDatabase(roomMeta);
+        let room_slug = meta.room_slug;
+        globalRoomState = await this.getRoomState(room_slug);
+        let db = await this.getDatabase(meta);
         switch (action.type) {
             case 'join':
                 await this.onPlayerJoin(action);
                 break;
             case 'leave':
                 try {
-                    await r.removePlayerRoom(action.user.id, meta.room_slug)
+                    await r.removePlayerRoom(action.user.id, room_slug)
                 }
                 catch (e) {
                     console.error(e);
@@ -350,7 +359,7 @@ class FSGWorker {
 
         globalDatabase = db;
         globalAction = [action];
-        delete action['meta'];
+
         let succeeded = this.runScript(game);
         if (typeof globalDone !== 'undefined' && globalDone) {
             globalResult.killGame = true;
@@ -367,15 +376,22 @@ class FSGWorker {
         if (!succeeded) {
             type = 'error';
         }
-        if (action.type == 'join')
+        if (action.type == 'join') {
             type = 'join';
+            globalResult.join = action.user.id;
+        }
+        else if (action.type == 'leave') {
+            type = 'leave';
+            globalResult.leave = action.user.id;
+        }
+
 
         // if (type == 'update' || type == 'finish' || type == 'error') {
-        this.mq.publish('ws', 'onRoomUpdate', { type, meta, payload: globalResult });
+        this.mq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: globalResult });
 
         // }
         // profiler.EndTime('WorkerManagerLoop');
-        this.sendMessageToManager({ type, meta, payload: globalResult });
+        this.sendMessageToManager({ type, room_slug, payload: globalResult });
         // console.timeEnd('ActionLoop');
     }
 
@@ -433,11 +449,11 @@ class FSGWorker {
 
     async getRoomMeta(room_slug) {
 
-        let roomMeta = await r.findRoom(room_slug);
-        if (!roomMeta) {
+        let meta = await r.findRoom(room_slug);
+        if (!meta) {
             return null;
         }
-        return roomMeta;
+        return meta;
     }
 
     async saveRoomState(action, meta, roomState) {
@@ -447,9 +463,9 @@ class FSGWorker {
 
         //let roomMeta = this.roomCache.get(key) || {};
         if (action.type == 'join' || action.type == 'leave') {
-            let roomMeta = await this.getRoomMeta(room_slug);
+            // let roomMeta = await this.getRoomMeta(room_slug);
             let playerList = Object.keys(roomState.players);
-            roomMeta.player_count = playerList.length;
+            // roomMeta.player_count = playerList.length;
 
             try {
                 r.updateRoomPlayerCount(room_slug, playerList.length);
