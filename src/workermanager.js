@@ -88,7 +88,7 @@ module.exports = class WorkerManager {
 
         // let worker = this.games[game_slug];
         if (!(game_slug in this.games)) {
-            await this.createGame(msg);
+            await this.createGame(msg, meta);
         }
 
         return true;
@@ -102,7 +102,7 @@ module.exports = class WorkerManager {
 
         let worker = this.games[game_slug];
         if (!worker) {
-            worker = await this.createGame(msg);
+            worker = await this.createGame(msg, meta);
         }
         if (!worker)
             return false;
@@ -111,9 +111,9 @@ module.exports = class WorkerManager {
         return true;
     }
 
-    async createGame(msg) {
+    async createGame(msg, meta) {
         let room_slug = msg.room_slug;
-        let meta = await this.getRoomMeta(room_slug);
+        meta = meta || await this.getRoomMeta(room_slug);
         let game_slug = meta.game_slug;
 
         if (game_slug in this.games) {
@@ -144,10 +144,12 @@ module.exports = class WorkerManager {
         worker.on("message", async (msg) => {
             // console.log("WorkerManager [" + index + "] received: ", msg);
 
-            if (msg.type == 'update' && msg.payload.timer) {
-                this.addRoomDeadline(msg.room_slug, msg.payload.timer)
+            if (msg.type == 'update' && msg.timer) {
+                this.addRoomDeadline(msg.room_slug, msg.timer)
             }
-
+            else if (msg.type == 'finish' || msg.type == 'error') {
+                this.clearRoomDeadline(msg.room_slug);
+            }
             // if (msg.type == 'join') {
             //     // await this.mq.publish('ws', 'onJoinResponse', msg);
             // }
@@ -217,6 +219,9 @@ module.exports = class WorkerManager {
     }
 
     async addRoomDeadline(room_slug, timer) {
+
+        if (typeof timer.seq === 'undefined')
+            return;
 
         let curTimer = await this.getTimerData(room_slug);
         if (curTimer && curTimer.seq == timer.seq)

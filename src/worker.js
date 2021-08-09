@@ -5,16 +5,11 @@ const { VM, VMScript, NodeVM } = require('vm2');
 const profiler = require('fsg-shared/util/profiler')
 const redis = require('fsg-shared/services/redis');
 const rabbitmq = require('fsg-shared/services/rabbitmq');
-
 const NodeCache = require("node-cache");
-
 const ObjectStorageService = require("fsg-shared/services/objectstorage");
 const s3 = new ObjectStorageService();
-
 const r = require('fsg-shared/services/room');
-
 var Queue = require('queue-fifo');
-
 const cache = require('fsg-shared/services/cache');
 
 // const { version } = require("os");
@@ -79,6 +74,13 @@ class FSGWorker {
 
         this.isProcessing = false;
 
+        //holds games in busy state
+        this.gameBusy = {};
+        //holds games action queues
+        this.gameActions = {};
+
+
+
         console.log("Started worker: ", index);
         this.start();
     }
@@ -90,109 +92,80 @@ class FSGWorker {
         }
     }
 
-    async onAction(msg) {
+    async onAction(action) {
 
-        // console.time('ActionLoop');
-
-        if (!msg.type) {
-            console.error("Not an action: ", msg);
+        if (!action.type) {
+            console.error("Not an action: ", action);
             return;
         }
 
-
-
-        let room_slug = msg.room_slug;
-        let meta = await this.getRoomMeta(room_slug);
-        let game_slug = meta.game_slug;
-        let version = meta.version;
-
-        if (!game_slug || !room_slug)
+        if (!action.room_slug) {
+            console.error("Missing room_slug: ", action);
             return;
-
-
-
-
-        if (msg.type == 'join') {
-
         }
 
-
-        //console.log("Action Queued: ", msg);
-        this.actions.enqueue(msg);
+        this.actions.enqueue(action);
         this.tryDequeue();
-        // console.timeEnd('ActionLoop');
-    }
-
-    async downloadServerFiles(msg) {
-        let room_slug = msg.room_slug;
-
-        let meta = await this.getRoomMeta(room_slug);
-
-
-        try {
-            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
-            let script = await this.downloadGameJS(key);
-            if (!script) {
-                console.error("Script unable to be created for: ", msg);
-            }
-        } catch (e) {
-            console.error("Error: Script unable to be created for: ", msg);
-            console.log('Error:', e);
-        }
-
-        if (!meta.db)
-            return;
-
-        try {
-            let key = meta.gameid + '/server.db.' + meta.version + '.json';
-            let db = await this.downloadGameDatabase(key);
-            if (!db) {
-                console.error("Database unable to be created for: ", msg);
-            }
-        } catch (e) {
-            console.error("Error: Database unable to be created for: ", msg);
-            console.log('Error:', e);
-        }
     }
 
     async tryDequeue() {
         if (this.isProcessing || this.actions.size() == 0) {
             return;
         }
-        // console.time('tryDequeue');
 
         this.isProcessing = true;
+        {
+            let action = this.actions.dequeue();
+            let meta = await this.getRoomMeta(action.room_slug);
+            if (!meta)
+                return;
 
-        // let peeked = this.actions.peek();
-
-        let action = this.actions.dequeue();
-        if (!action.room_slug) {
-            this.tryDequeue();
-            this.isProcessing = false;
-            return;
+            let gamekey = meta.game_slug + meta.version;
+            if (!this.gameActions[gamekey]) {
+                this.gameActions[gamekey] = new Queue();
+            }
+            this.gameActions[gamekey].enqueue(action);
+            this.tryRunGame(gamekey);
         }
-
-        let meta = await this.getRoomMeta(action.room_slug);
-        await this.downloadServerFiles(action);
-        let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
-        let game = await this.getGame(key);
-        if (!game) {
-            this.actions.enqueue(action);
-            this.tryDequeue();
-            this.isProcessing = false;
-            return;
-        }
-
-        await this.runAction(action, game, meta);
-
         this.isProcessing = false;
-        // console.timeEnd('tryDequeue');
+
         this.tryDequeue();
+    }
+
+    //keeps a nested queue for game + version, since downloading server js and db takes time
+    // we want to ensure the actions are processed in correct order and must wait for the files to be downloaded
+    async tryRunGame(gamekey) {
+
+        if (this.gameBusy[gamekey] || !this.gameActions[gamekey] || this.gameActions[gamekey].size() == 0) {
+            return;
+        }
+
+        this.gameBusy[gamekey] = true;
+        {
+            let action = this.gameActions[gamekey].peek();
+            let meta = await this.getRoomMeta(action.room_slug);
+
+            await this.downloadServerFiles(action, meta);
+
+            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
+            let game = await this.getGame(key);
+
+            if (!game) {
+                this.gameBusy[gamekey] = false;
+                this.tryRunGame(gamekey);
+                return;
+            }
+
+            action = this.gameActions[gamekey].dequeue();
+            await this.runAction(action, game, meta);
+        }
+        this.gameBusy[gamekey] = false;
+
+        this.tryRunGame(gamekey);
     }
 
     async start() {
         try {
-
             await redis.connect(redisCred);
 
             parentPort.on('message', this.onAction.bind(this));
@@ -201,25 +174,44 @@ class FSGWorker {
             process.on('uncaughtException', this.onException)
 
             setInterval(() => { }, 100000000);
-
-            // this.startLoop();
         }
         catch (e) {
             console.error(e);
         }
     }
 
-    async startLoop() {
-        while (true) {
+    async downloadServerFiles(action, meta) {
+        let room_slug = action.room_slug;
 
-            if (this.actions.size() > 0) {
-                this.mainLoop();
-                continue;
+        meta = meta || await this.getRoomMeta(room_slug);
 
+        try {
+            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
+            if (!(key in this.games)) {
+                let script = await this.downloadGameJS(key);
+                if (!script) {
+                    console.error("Script unable to be created for: ", action);
+                }
             }
+        } catch (e) {
+            console.error("Error: Script unable to be created for: ", action);
+            console.log('Error:', e);
+        }
 
-            await sleep(2);
-            // continue;
+        if (!meta.db)
+            return;
+
+        try {
+            let key = meta.gameid + '/server.db.' + meta.version + '.json';
+            if (!(key in this.databases)) {
+                let db = await this.downloadGameDatabase(key);
+                if (!db) {
+                    console.error("Database unable to be created for: ", action);
+                }
+            }
+        } catch (e) {
+            console.error("Error: Database unable to be created for: ", action);
+            console.log('Error:', e);
         }
     }
 
@@ -242,10 +234,6 @@ class FSGWorker {
 
         //this.roomStates[room_slug] = game;
         return game;
-    }
-
-    async mainLoop() {
-
     }
 
     async getDatabase(meta) {
@@ -328,27 +316,33 @@ class FSGWorker {
 
 
     async runAction(action, game, meta) {
-        console.log('runAction', action);
+        // console.log('runAction', action);
         let room_slug = meta.room_slug;
         globalRoomState = await this.getRoomState(room_slug);
-        let db = await this.getDatabase(meta);
-        switch (action.type) {
-            case 'join':
-                await this.onPlayerJoin(action);
-                break;
-            case 'leave':
-                try {
-                    await r.removePlayerRoom(action.user.id, room_slug)
-                }
-                catch (e) {
-                    console.error(e);
-                    return;
-                }
 
-                break;
-            case 'reset':
-                globalRoomState = this.makeGame(false, globalRoomState);
-                break;
+        if (globalRoomState.join)
+            delete globalRoomState['join'];
+        if (globalRoomState.leave)
+            delete globalRoomState['leave'];
+
+        let db = await this.getDatabase(meta);
+
+        try {
+            switch (action.type) {
+                case 'join':
+                    await this.onPlayerJoin(action);
+                    break;
+                case 'leave':
+                    await r.removePlayerRoom(action.user.id, room_slug)
+                    break;
+                case 'reset':
+                    globalRoomState = this.makeGame(false, globalRoomState);
+                    break;
+            }
+        }
+        catch (e) {
+            console.error(e);
+            return;
         }
 
         let timeleft = this.calculateTimeleft(globalRoomState);
@@ -361,7 +355,7 @@ class FSGWorker {
         globalAction = [action];
 
         let succeeded = this.runScript(game);
-        if (typeof globalDone !== 'undefined' && globalDone) {
+        if (!succeeded || (typeof globalDone !== 'undefined' && globalDone)) {
             globalResult.killGame = true;
             globalDone = false;
         }
@@ -371,11 +365,8 @@ class FSGWorker {
             await this.saveRoomState(action, meta, globalResult);
         }
         let type = 'update';
-        if (globalResult.killGame == true)
-            type = 'finish';
-        if (!succeeded) {
-            type = 'error';
-        }
+
+
         if (action.type == 'join') {
             type = 'join';
             globalResult.join = action.user.id;
@@ -385,20 +376,27 @@ class FSGWorker {
             globalResult.leave = action.user.id;
         }
 
+        if (globalResult.killGame == true)
+            type = 'finish';
+        if (!succeeded) {
+            type = 'error';
+        }
 
         // if (type == 'update' || type == 'finish' || type == 'error') {
         this.mq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: globalResult });
 
         // }
         // profiler.EndTime('WorkerManagerLoop');
-        this.sendMessageToManager({ type, room_slug, payload: globalResult });
+        this.sendMessageToManager({ type, room_slug, timer: globalResult.timer });
         // console.timeEnd('ActionLoop');
     }
 
     async sendMessageToManager(msg) {
-        if (msg.type == 'update' && msg.payload.timer && msg.payload.timer.end)
+        if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error')
             parentPort.postMessage(msg);
+
     }
+
     runScript(script) {
         if (!script) {
             console.error("Game script is not loaded.");
@@ -406,11 +404,11 @@ class FSGWorker {
         }
 
         try {
-            // console.time('Game Logic');
+            console.time('Game Logic');
             {
                 vm.run(script);
             }
-            // console.timeEnd('Game Logic', 100);
+            console.timeEnd('Game Logic', 100);
             return true;
         }
         catch (e) {
@@ -459,13 +457,8 @@ class FSGWorker {
     async saveRoomState(action, meta, roomState) {
         let room_slug = meta.room_slug;
 
-        //this.roomStates[room_slug] = roomState;
-
-        //let roomMeta = this.roomCache.get(key) || {};
         if (action.type == 'join' || action.type == 'leave') {
-            // let roomMeta = await this.getRoomMeta(room_slug);
             let playerList = Object.keys(roomState.players);
-            // roomMeta.player_count = playerList.length;
 
             try {
                 r.updateRoomPlayerCount(room_slug, playerList.length);
@@ -473,18 +466,8 @@ class FSGWorker {
             catch (e) {
                 console.error(e);
             }
-            //cache.set(room_slug + '/meta', roomMeta);
         }
-
         cache.set(room_slug, roomState, 6000);
-
-        // this.roomCache.set(room_slug, roomState)
-        // redis.set(room_slug, roomState);
-
-        // this.roomCache.set(key, roomMeta);
-        // redis.set(key, roomMeta);
-
-        // globalRoomState = JSON.parse(JSON.stringify(globalResult));
     }
 
 
@@ -511,13 +494,6 @@ class FSGWorker {
         this.databases[key] = JSON.parse(json);
         return this.databases[key];
     }
-
-    async downloadGameState(room_slug) {
-        var state = await redis.get(room_slug);
-        return state;
-    }
-
-
 
 
     async onClose() {
