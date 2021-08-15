@@ -11,6 +11,9 @@ const s3 = new ObjectStorageService();
 const r = require('fsg-shared/services/room');
 var Queue = require('queue-fifo');
 const cache = require('fsg-shared/services/cache');
+const delta = require('fsg-shared/util/delta');
+const rank = require('./rank');
+
 
 // const { version } = require("os");
 var globalDatabase = null;
@@ -157,7 +160,7 @@ class FSGWorker {
             }
 
             action = this.gameActions[gamekey].dequeue();
-            await this.runAction(action, game, meta);
+            await this.runAction(action, game.script, meta);
         }
         this.gameBusy[gamekey] = false;
 
@@ -187,9 +190,10 @@ class FSGWorker {
 
         try {
             let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
-            if (!(key in this.games)) {
-                let script = await this.downloadGameJS(key);
-                if (!script) {
+            if (!(key in this.games) || this.games[key].lastupdate != meta.latest_tsupdate) {
+                let game = await this.downloadGameJS(key, meta);
+                game.lastupdate = meta.latest_tsupdate;
+                if (!game || !game.script) {
                     console.error("Script unable to be created for: ", action);
                 }
             }
@@ -203,8 +207,9 @@ class FSGWorker {
 
         try {
             let key = meta.gameid + '/server.db.' + meta.version + '.json';
-            if (!(key in this.databases)) {
-                let db = await this.downloadGameDatabase(key);
+            if (!(key in this.databases) || this.databases[key].lastupdate != meta.latest_tsupdate) {
+                let db = await this.downloadGameDatabase(key, meta);
+                db.lastupdate = meta.latest_tsupdate;
                 if (!db) {
                     console.error("Database unable to be created for: ", action);
                 }
@@ -242,20 +247,20 @@ class FSGWorker {
 
         let key = meta.gameid + '/server.db.' + meta.version + '.json';
         let db = this.databases[key];
-        if (!db) {
+        if (!db || !db.db) {
             try {
                 let db = await this.downloadGameDatabase(key);
-                if (!db) {
+                if (!db || !db.db) {
                     console.error("Database unable to be created for: ", meta);
                 }
-                return db;
+                return db.db;
             } catch (e) {
                 console.error("Error: Database unable to be created for: ", meta);
                 console.log('Error:', e);
             }
         }
 
-        return db;
+        return db.db;
     }
 
     async onPlayerJoin(action) {
@@ -319,11 +324,14 @@ class FSGWorker {
         // console.log('runAction', action);
         let room_slug = meta.room_slug;
         globalRoomState = await this.getRoomState(room_slug);
+        let previousRoomState = cloneObj(globalRoomState);
 
-        if (globalRoomState.join)
-            delete globalRoomState['join'];
-        if (globalRoomState.leave)
-            delete globalRoomState['leave'];
+        // if (globalRoomState.join)
+        //     delete globalRoomState['join'];
+        // if (globalRoomState.leave)
+        //     delete globalRoomState['leave'];
+        if (globalRoomState.events)
+            globalRoomState.events = {};
 
         let db = await this.getDatabase(meta);
 
@@ -355,13 +363,11 @@ class FSGWorker {
         globalAction = [action];
 
         let succeeded = this.runScript(game);
-        if (!succeeded || (typeof globalDone !== 'undefined' && globalDone)) {
-            globalResult.killGame = true;
-            globalDone = false;
-        }
+        let isGameover = (globalResult.events && globalResult.events.gameover);
 
         if (globalResult) {
-            this.processTimelimit(globalResult.timer);
+            if (!isGameover)
+                this.processTimelimit(globalResult.timer);
             await this.saveRoomState(action, meta, globalResult);
         }
         let type = 'update';
@@ -369,27 +375,102 @@ class FSGWorker {
 
         if (action.type == 'join') {
             type = 'join';
-            globalResult.join = action.user.id;
+            if (!globalResult.events) {
+                if (!globalResult.events.join)
+                    globalResult.events.join = { id: action.user.id }
+                else if (!globalResult.events.join.id) {
+                    globalResult.events.join.id = action.user.id;
+                }
+            }
+            // globalResult.join = action.user.id;
         }
         else if (action.type == 'leave') {
             type = 'leave';
-            globalResult.leave = action.user.id;
+            if (!globalResult.events.leave)
+                globalResult.events.leave = { id: action.user.id }
+            else if (!globalResult.events.leave.id) {
+                globalResult.events.leave.id = action.user.id;
+            }
+
+            // globalResult.leave = action.user.id;
         }
 
-        if (globalResult.killGame == true)
+        if (isGameover) {
             type = 'finish';
+            await this.processPlayerRatings(meta, globalResult.players);
+        }
+
         if (!succeeded) {
             type = 'error';
         }
 
+        let dlta = delta.delta(previousRoomState, globalResult, {});
+
         // if (type == 'update' || type == 'finish' || type == 'error') {
-        this.mq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: globalResult });
+        this.mq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
 
         // }
         // profiler.EndTime('WorkerManagerLoop');
         this.sendMessageToManager({ type, room_slug, timer: globalResult.timer });
         // console.timeEnd('ActionLoop');
     }
+
+    async processPlayerRatings(meta, players, storedPlayerRatings) {
+
+        //add saved ratings to players in openskill format
+        storedPlayerRatings = storedPlayerRatings || {};
+        let playerRatings = {};
+        for (var id in players) {
+            let player = players[id];
+
+            if (!(id in storedPlayerRatings)) {
+                storedPlayerRatings[id] = await r.findPlayerRating(id, meta.game_slug);
+            }
+            if ((typeof player.rank === 'undefined')) {
+                console.error("Player [" + id + "] (" + player.name + ") is missing rank")
+                return;
+            }
+
+            let playerRating = storedPlayerRatings[id];
+            playerRating.rank = player.rank;
+            if ((typeof player.score !== 'undefined')) {
+                playerRating.score = player.score;
+            }
+            playerRatings[id] = playerRating;
+        }
+
+        console.log("Before Rating: ", playerRatings);
+
+        //run OpenSkill rating system
+        rank.calculateRanks(playerRatings);
+
+        //update player ratings from openskill mutation of playerRatings
+        let ratingsList = [];
+        for (var id in players) {
+            let player = players[id];
+
+            if (!(id in playerRatings)) {
+                continue;
+            }
+            let rating = playerRatings[id];
+            player.rating = rating.rating;
+            player.mu = rating.mu;
+            player.sigma = rating.sigma;
+
+            ratingsList.push({
+                shortid: id,
+                game_slug: meta.game_slug,
+                rating: rating.rating,
+                mu: rating.mu,
+                sigma: rating.sigma
+            });
+        }
+
+        r.updateAllPlayerRatings(ratingsList);
+
+        console.log("After Rating: ", storedPlayerRatings);
+    }
+
 
     async sendMessageToManager(msg) {
         if (msg.type == 'update' || msg.type == 'finish' || msg.type == 'error')
@@ -426,8 +507,8 @@ class FSGWorker {
         roomState.state = {};
         roomState.rules = {};
         roomState.next = {};
-        roomState.prev = {};
-        roomState.events = [];
+        // roomState.prev = {};
+        roomState.events = {};
 
         if (clearPlayers) {
             roomState.players = {}
@@ -471,27 +552,27 @@ class FSGWorker {
     }
 
 
-    async downloadGameJS(key) {
+    async downloadGameJS(key, meta) {
 
-        if (key in this.games)
-            return this.games[key];
+        // if (key in this.games)
+        //     return this.games[key];
 
-        var js = await s3.downloadServerScript(key);
+        var js = await s3.downloadServerScript(key, meta);
 
         var script = new VMScript(js);
 
-        this.games[key] = script;
-        return script;
+        this.games[key] = { script };
+        return this.games[key];
     }
 
-    async downloadGameDatabase(key) {
+    async downloadGameDatabase(key, meta) {
 
-        if (key in this.databases)
-            return this.databases[key];
+        // if (key in this.databases)
+        //     return this.databases[key];
 
-        var json = await s3.downloadServerScript(key);
+        var json = await s3.downloadServerScript(key, meta);
 
-        this.databases[key] = JSON.parse(json);
+        this.databases[key] = { db: JSON.parse(json) };
         return this.databases[key];
     }
 

@@ -12,6 +12,7 @@
     "axios": "^0.21.1",
     "fsg-shared": "file:../fsg-shared",
     "node-cache": "^5.1.2",
+    "openskill": "^1.4.1",
     "priorityqueuejs": "^2.0.0",
     "queue-fifo": "^0.2.6",
     "vm2": "^3.9.2",
