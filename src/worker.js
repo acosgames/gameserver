@@ -118,17 +118,25 @@ class FSGWorker {
 
         this.isProcessing = true;
         {
-            let action = this.actions.dequeue();
-            let meta = await this.getRoomMeta(action.room_slug);
-            if (!meta)
-                return;
+            try {
+                let action = this.actions.dequeue();
+                let meta = await this.getRoomMeta(action.room_slug);
+                if (!meta) {
+                    this.isProcessing = false;
+                    return;
+                }
 
-            let gamekey = meta.game_slug + meta.version;
-            if (!this.gameActions[gamekey]) {
-                this.gameActions[gamekey] = new Queue();
+                let gamekey = meta.game_slug + meta.version;
+                if (!this.gameActions[gamekey]) {
+                    this.gameActions[gamekey] = new Queue();
+                }
+                this.gameActions[gamekey].enqueue(action);
+                this.tryRunGame(gamekey);
             }
-            this.gameActions[gamekey].enqueue(action);
-            this.tryRunGame(gamekey);
+            catch (e) {
+                console.error(e);
+            }
+
         }
         this.isProcessing = false;
 
@@ -160,7 +168,16 @@ class FSGWorker {
             }
 
             action = this.gameActions[gamekey].dequeue();
-            await this.runAction(action, game.script, meta);
+            let passed = await this.runAction(action, game.script, meta);
+            if (!passed) {
+                let gamekey = meta.game_slug + meta.version;
+                this.gameBusy[gamekey] = false;
+                this.gameActions[gamekey].clear();
+                this.isProcessing = false;
+                let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
+                this.mq.publish('ws', 'onRoomUpdate', outMessage);
+                this.sendMessageToManager(outMessage);
+            }
         }
         this.gameBusy[gamekey] = false;
 
@@ -350,7 +367,7 @@ class FSGWorker {
         }
         catch (e) {
             console.error(e);
-            return;
+            return false;
         }
 
         let timeleft = this.calculateTimeleft(globalRoomState);
@@ -363,6 +380,9 @@ class FSGWorker {
         globalAction = [action];
 
         let succeeded = this.runScript(game);
+        if (!succeeded) {
+            return false;
+        }
         let isGameover = (globalResult.events && globalResult.events.gameover);
 
         if (globalResult) {
@@ -402,6 +422,8 @@ class FSGWorker {
 
         if (!succeeded) {
             type = 'error';
+
+            return false;
         }
 
         let dlta = delta.delta(previousRoomState, globalResult, {});
@@ -413,6 +435,7 @@ class FSGWorker {
         // profiler.EndTime('WorkerManagerLoop');
         this.sendMessageToManager({ type, room_slug, timer: globalResult.timer });
         // console.timeEnd('ActionLoop');
+        return true;
     }
 
     async processPlayerRatings(meta, players, storedPlayerRatings) {
