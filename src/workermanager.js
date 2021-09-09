@@ -134,6 +134,7 @@ module.exports = class WorkerManager {
     }
 
     async createWorkers() {
+        console.log(">>>> Creating " + cpuCount + " workers");
         for (var i = 0; i < cpuCount; i++) {
             this.workers.push(await this.createWorker(i));
         }
@@ -163,13 +164,15 @@ module.exports = class WorkerManager {
 
         })
         worker.on("error", (err) => {
-            console.error(err);
+            console.error("Worker quit unexpectedly: ", err);
+            this.createWorker(index);
         })
         worker.on("exit", code => {
             if (code !== 0) {
                 console.error(code);
-                throw new Error(`Worker stopped with exit code ${code}`)
+                console.error(`Worker stopped with exit code ${code}`)
             }
+            this.createWorker(index);
         })
 
         return worker;
