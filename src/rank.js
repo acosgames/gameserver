@@ -1,7 +1,65 @@
 var { rating, rate, ordinal } = require('openskill');
+const room = require('fsg-shared/services/room');
 
 class Rank {
     constructor() { }
+
+    async processPlayerRatings(meta, players, storedPlayerRatings) {
+
+        //add saved ratings to players in openskill format
+        storedPlayerRatings = storedPlayerRatings || {};
+        let playerRatings = {};
+        for (var id in players) {
+            let player = players[id];
+
+            if (!(id in storedPlayerRatings)) {
+                storedPlayerRatings[id] = await room.findPlayerRating(id, meta.game_slug);
+            }
+            if ((typeof player.rank === 'undefined')) {
+                console.error("Player [" + id + "] (" + player.name + ") is missing rank")
+                return;
+            }
+
+            let playerRating = storedPlayerRatings[id];
+            playerRating.rank = player.rank;
+            if ((typeof player.score !== 'undefined')) {
+                playerRating.score = player.score;
+            }
+            playerRatings[id] = playerRating;
+        }
+
+        console.log("Before Rating: ", playerRatings);
+
+        //run OpenSkill rating system
+        this.calculateRanks(playerRatings);
+
+        //update player ratings from openskill mutation of playerRatings
+        let ratingsList = [];
+        for (var id in players) {
+            let player = players[id];
+
+            if (!(id in playerRatings)) {
+                continue;
+            }
+            let rating = playerRatings[id];
+            player.rating = rating.rating;
+            player.mu = rating.mu;
+            player.sigma = rating.sigma;
+
+            ratingsList.push({
+                shortid: id,
+                game_slug: meta.game_slug,
+                rating: rating.rating,
+                mu: rating.mu,
+                sigma: rating.sigma
+            });
+        }
+
+        room.updateAllPlayerRatings(ratingsList);
+
+        console.log("After Rating: ", storedPlayerRatings);
+        return ratingsList;
+    }
 
     calculateRanks(players, teams) {
 
