@@ -92,6 +92,30 @@ class GameTimer {
     }
 
 
+    async addRoomDeadline(room_slug, timer) {
+
+        if (typeof timer.seq === 'undefined')
+            return;
+
+        let curTimer = await storage.getTimerData(room_slug);
+        if (curTimer && curTimer.seq == timer.seq)
+            return;
+
+        let data = {
+            room_slug,
+            seq: timer.seq,
+            end: timer.end,
+        }
+
+        storage.setRoomDeadline(room_slug, data);
+
+        // this.cache[room_slug + '/timer'] = data;
+        // cache.set(room_slug + '/timer', data);
+        // redis.set(room_slug + '/timer', data);
+        this.deadlines.enq({ end: timer.end, room_slug })
+    }
+
+
 
 
 

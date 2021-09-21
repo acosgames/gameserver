@@ -28,7 +28,7 @@ class Rank {
             playerRatings[id] = playerRating;
         }
 
-        console.log("Before Rating: ", playerRatings);
+        // console.log("Before Rating: ", playerRatings);
 
         //run OpenSkill rating system
         this.calculateRanks(playerRatings);
@@ -57,7 +57,7 @@ class Rank {
 
         room.updateAllPlayerRatings(ratingsList);
 
-        console.log("After Rating: ", storedPlayerRatings);
+        // console.log("After Rating: ", storedPlayerRatings);
         return ratingsList;
     }
 

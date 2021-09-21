@@ -1,8 +1,10 @@
-const WorkerManager = require('./src/workermanager');
-const wm = new WorkerManager();
+// const WorkerManager = require('./src/workermanager');
+// const wm = new WorkerManager();
 
 const axios = require('axios');
 const credutil = require('fsg-shared/util/credentials');
+const gamequeue = require('./src/gamequeue')
+const gamereceiver = require('./src/gamereceiver');
 
 axios.interceptors.response.use(
     response => {
@@ -25,20 +27,23 @@ async function start() {
 
     let credentials = credutil();
     let url = credentials.platform.api.url;
-    while( true ) {
+    while (true) {
 
         try {
             let response = await axios.get(url)
-            if( response )
+            if (response)
                 break;
         }
-        catch(e) {}
+        catch (e) { }
 
         await sleep(2000);
     }
 
-    
-    wm.connect();
+    await gamereceiver.start()
+
+    gamequeue.start();
+    console.log("[GameServer] STARTED @ " + (new Date()).toString());
+    // wm.connect();
 }
 
 start();

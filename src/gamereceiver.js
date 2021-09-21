@@ -1,6 +1,9 @@
 const rabbitmq = require('fsg-shared/services/rabbitmq');
+const redis = require('fsg-shared/services/redis');
 const events = require('./events');
 const storage = require('./storage');
+const gamedownloader = require('./gamedownloader');
+const profiler = require('fsg-shared/util/profiler');
 
 class GameReceiver {
 
@@ -8,14 +11,24 @@ class GameReceiver {
 
     }
 
-    setup() {
-        if (!this.mq.isActive() || !this.redis.isActive) {
-            setTimeout(this.setup.bind(this), 2000);
-            return;
-        }
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
-        rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
-        events.addSkipListener(this.onSkip.bind(this));
+    start() {
+        return new Promise(async (rs, rj) => {
+            while (!(rabbitmq.isActive() && redis.isActive)) {
+
+                console.warn("[GameReceiver] waiting on rabbitmq and redis...");
+                await this.sleep(1000);
+                //return;
+            }
+
+            rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
+            events.addSkipListener(this.onSkip.bind(this));
+            rs(true);
+        })
+
     }
 
     async onSkip(msg) {
@@ -33,7 +46,7 @@ class GameReceiver {
 
         // let worker = this.games[game_slug];
         if (!storage.isLoaded(game_slug)) {
-            await this.createGameReceiver(msg, meta);
+            await this.createGameReceiver(game_slug, msg);
         }
 
         events.emitLoadGame({ msg, meta });
@@ -41,6 +54,8 @@ class GameReceiver {
     }
 
     async onNextAction(game_slug, msg) {
+        profiler.StartTime('GameServer-loop');
+
         // console.time('WorkerManagerLoop');
         // let room_slug = msg.room_slug;
         // let meta = await this.getRoomMeta(room_slug);
@@ -60,6 +75,7 @@ class GameReceiver {
         if (storage.isLoaded(game_slug))
             return false;
 
+        await gamedownloader.downloadServerFiles(msg);
         // let worker = storage.workers[this.nextWorker];
         storage.setLoaded(game_slug, true);
         // this.nextWorker = (this.nextWorker + 1) % this.workers.length;

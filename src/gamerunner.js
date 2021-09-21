@@ -5,7 +5,7 @@ const storage = require('./storage');
 const gametimer = require('./gametimer');
 const rank = require('./rank');
 const delta = require('fsg-shared/util/delta');
-
+const profiler = require('fsg-shared/util/profiler');
 // const { version } = require("os");
 var globalDatabase = null;
 var globalRoomState = null;
@@ -39,7 +39,7 @@ const vm = new VM({
     wasm: false,
     eval: false,
     fixAsync: false,
-    //timeout: 100,
+    timeout: 100,
     sandbox: { globals },
 });
 
@@ -57,12 +57,16 @@ function cloneObj(obj) {
 class GameRunner {
 
     async runAction(action, game, meta) {
+        // profiler.StartTime("GameRunner.runAction");
         let passed = await this.runActionEx(action, game, meta);
         if (!passed) {
             let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
             rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+            storage.clearRoomDeadline(room_slug);
             // this.sendMessageToManager(outMessage);
+
         }
+        // profiler.EndTime("GameRunner.runAction");
         return passed;
     }
 
@@ -152,11 +156,7 @@ class GameRunner {
             await rank.processPlayerRatings(meta, globalResult.players);
         }
 
-        if (!succeeded) {
-            type = 'error';
-            storage.clearRoomDeadline(room_slug);
-            return false;
-        }
+
 
         let dlta = delta.delta(previousRoomState, globalResult, {});
 
@@ -164,7 +164,7 @@ class GameRunner {
         rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
 
         if (type == 'update' && globalResult.timer) {
-            storage.addRoomDeadline(room_slug, globalResult.timer)
+            gametimer.addRoomDeadline(room_slug, globalResult.timer)
         }
         else if (type == 'finish' || type == 'error') {
             storage.clearRoomDeadline(room_slug);
@@ -184,11 +184,11 @@ class GameRunner {
         }
 
         try {
-            console.time('Game Logic');
+            profiler.StartTime('Game Logic');
             {
                 vm.run(script);
             }
-            console.timeEnd('Game Logic', 100);
+            profiler.EndTime('Game Logic', 50);
             return true;
         }
         catch (e) {

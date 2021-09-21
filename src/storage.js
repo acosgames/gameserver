@@ -90,27 +90,8 @@ class Storage {
         return timerData;
     }
 
-    async addRoomDeadline(room_slug, timer) {
-
-        if (typeof timer.seq === 'undefined')
-            return;
-
-        let curTimer = await this.getTimerData(room_slug);
-        if (curTimer && curTimer.seq == timer.seq)
-            return;
-
-        let data = {
-            room_slug,
-            seq: timer.seq,
-            end: timer.end,
-        }
-
+    async setRoomDeadline(room_slug, data) {
         cache.set(room_slug + '/timer', data);
-
-        // this.cache[room_slug + '/timer'] = data;
-        // cache.set(room_slug + '/timer', data);
-        // redis.set(room_slug + '/timer', data);
-        this.deadlines.enq({ end: timer.end, room_slug })
     }
 
     async clearRoomDeadline(room_slug) {

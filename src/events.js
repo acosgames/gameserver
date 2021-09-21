@@ -1,6 +1,6 @@
 
-const EventEmitter = require('events');
-const emitter = new EventEmitter();
+const events = require('events');
+const emitter = new events.EventEmitter();
 
 class Events {
 

@@ -3,7 +3,9 @@ var Queue = require('queue-fifo');
 const events = require('./events');
 const storage = require('./storage');
 
+const gamedownloader = require('./gamedownloader');
 const gamerunner = require('./gamerunner');
+const profiler = require('fsg-shared/util/profiler');
 
 class GameQueue {
 
@@ -16,6 +18,10 @@ class GameQueue {
 
         this.gameActions = {};
 
+
+    }
+
+    start() {
         events.addNextActionListener(this.onNextAction.bind(this));
     }
 
@@ -75,15 +81,16 @@ class GameQueue {
             return;
         }
 
+        profiler.StartTime("GameQueue.tryRunGame");
         this.gameBusy[gamekey] = true;
         {
             let action = this.gameActions[gamekey].peek();
             let meta = await storage.getRoomMeta(action.room_slug);
 
-            await this.downloadServerFiles(action, meta);
+            await gamedownloader.downloadServerFiles(action, meta);
 
             let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
-            let gameServer = await storage.getGameServer(key);
+            let gameServer = storage.getGameServer(key);
 
             if (!gameServer) {
                 this.gameBusy[gamekey] = false;
@@ -102,6 +109,8 @@ class GameQueue {
         this.gameBusy[gamekey] = false;
 
         this.tryRunGame(gamekey);
+        profiler.EndTime("GameQueue.tryRunGame");
+        profiler.EndTime('GameServer-loop');
     }
 
 }
