@@ -1,7 +1,6 @@
 
 const cache = require('fsg-shared/services/cache');
 const room = require('fsg-shared/services/room');
-const redis = require('fsg-shared/services/redis');
 
 class Storage {
 

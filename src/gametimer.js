@@ -61,13 +61,15 @@ class GameTimer {
 
             let room_slug = next.room_slug;
             let roomTimer = await storage.getTimerData(room_slug);
-            let now = (new Date()).getTime();
 
-            if (!roomTimer || typeof roomTimer.end == 'undefined' || roomTimer.end != next.end) {
+
+            if (!roomTimer || typeof roomTimer.seq == 'undefined' || roomTimer.seq != next.seq) {
                 this.deadlines.deq();
                 return;
             }
 
+            //haven't reached deadline, wait until next interval
+            let now = (new Date()).getTime();
             if (now < roomTimer.end)
                 return;
 
@@ -112,7 +114,7 @@ class GameTimer {
         // this.cache[room_slug + '/timer'] = data;
         // cache.set(room_slug + '/timer', data);
         // redis.set(room_slug + '/timer', data);
-        this.deadlines.enq({ end: timer.end, room_slug })
+        this.deadlines.enq(data)
     }
 
 
