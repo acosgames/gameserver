@@ -56,17 +56,21 @@ class GameReceiver {
     async onNextAction(game_slug, msg) {
         profiler.StartTime('GameServer-loop');
 
-        // console.time('WorkerManagerLoop');
-        // let room_slug = msg.room_slug;
-        // let meta = await this.getRoomMeta(room_slug);
-        // let game_slug = meta.game_slug;
-
-        if (!storage.isLoaded(game_slug)) {
-            await this.createGameReceiver(game_slug, msg);
+        if (Array.isArray(msg)) {
+            if (!storage.isLoaded(game_slug)) {
+                await this.createGameReceiver(game_slug, msg[0]);
+            }
+            for (let i = 0; i < msg.length; i++) {
+                events.emitNextAction(msg[i]);
+            }
+        }
+        else {
+            if (!storage.isLoaded(game_slug)) {
+                await this.createGameReceiver(game_slug, msg);
+            }
+            events.emitNextAction(msg);
         }
 
-        events.emitNextAction(msg);
-        // worker.postMessage(msg);
         return true;
     }
 
