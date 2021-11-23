@@ -12,6 +12,7 @@ class GameDownloader {
 
         try {
             let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
+
             let gameServer = storage.getGameServer(key);
 
             if (!gameServer || gameServer.lastupdate != meta.latest_tsupdate) {

@@ -14,6 +14,58 @@ class Storage {
         this.loaded = {};
         this.cache = {};
 
+        this.roomCnt = 0;
+
+
+        this.queuekey = null;
+
+        this.actionCountsPrev = 0;
+        this.actionCounts = 0;
+        this.actionCursor = 0;
+        this.actionLastRunTime = 0;
+
+    }
+
+    setQueueKey(q) {
+        this.queuekey = q;
+    }
+    getQueueKey() {
+        return this.queuekey;
+    }
+
+    //calculate the average using previous minute and current minute counts
+    calculateActionRate() {
+        let now = (new Date()).getTime();
+        let diff = (now - this.actionLastRunTime) / 1000;
+        if (diff == 0)
+            diff = Number.EPSILON;
+        let sum = this.actionCounts;
+        let delta = ((this.actionCountsPrev) > 0 ? 1 : 0)
+        let denominator = (delta + (diff / 60));
+        let avg = sum / diff;
+        return avg;
+    }
+
+    //count actions ran per minute
+    processActionRate() {
+        let now = (new Date()).getTime();
+        let diff = now - this.actionLastRunTime;
+
+        if (diff <= 60000) {
+            this.actionCounts++;
+            return;
+        }
+
+        this.actionCountsPrev = this.actionCounts;
+        this.actionCounts = 0;
+        this.actionLastRunTime = now;
+    }
+
+    incrementRoomCount() {
+        this.roomCnt++;
+    }
+    decrementRoomCount() {
+        this.roomCnt--;
     }
 
     getGameServers() {

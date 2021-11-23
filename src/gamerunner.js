@@ -56,16 +56,23 @@ function cloneObj(obj) {
 
 class GameRunner {
 
+    async killRoom(action, game, meta) {
+        storage.clearRoomDeadline(action.room_slug);
+        let key = meta.game_slug + '/' + action.room_slug;
+        rabbitmq.unsubscribe('game', key, storage.getQueueKey());
+    }
+
     async runAction(action, game, meta) {
         // profiler.StartTime("GameRunner.runAction");
         let passed = await this.runActionEx(action, game, meta);
         if (!passed) {
             let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
             rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-            storage.clearRoomDeadline(room_slug);
-            // this.sendMessageToManager(outMessage);
-
+            this.killRoom(action, game, meta);
         }
+        storage.processActionRate();
+        // let aps = storage.calculateActionRate();
+        // console.log("Actions Per Second = " + aps);
         // profiler.EndTime("GameRunner.runAction");
         return passed;
     }
@@ -167,7 +174,7 @@ class GameRunner {
             gametimer.addRoomDeadline(room_slug, globalResult.timer)
         }
         else if (type == 'finish' || type == 'error') {
-            storage.clearRoomDeadline(room_slug);
+            this.killRoom(action, game, meta);
         }
         // }
         // profiler.EndTime('WorkerManagerLoop');
