@@ -15,7 +15,7 @@ class Storage {
         this.cache = {};
 
         this.roomCnt = 0;
-
+        this.rooms = {};
 
         this.queuekey = null;
 
@@ -26,6 +26,15 @@ class Storage {
 
     }
 
+    clearRooms() {
+        this.rooms = {};
+    }
+    addRoom(r) {
+        this.rooms[r] = true;
+    }
+    getRooms() {
+        return this.rooms;
+    }
     setQueueKey(q) {
         this.queuekey = q;
     }
@@ -33,6 +42,15 @@ class Storage {
         return this.queuekey;
     }
 
+    async addError(gameid, version, error) {
+        return await room.addError(gameid, version, error);
+    }
+
+    getLastActionRunSeconds() {
+        let now = (new Date()).getTime();
+        let diff = (now - this.actionLastRunTime) / 1000;
+        return diff;
+    }
     //calculate the average using previous minute and current minute counts
     calculateActionRate() {
         let now = (new Date()).getTime();
@@ -162,6 +180,7 @@ class Storage {
         roomState.next = {};
         // roomState.prev = {};
         roomState.events = {};
+        roomState.timer = { seq: 1 };
 
         if (clearPlayers) {
             roomState.players = {}

@@ -34,6 +34,9 @@ class GameTimer {
 
     processTimelimit(timer) {
 
+        if (!timer) {
+            timer = { seq: 1 }
+        }
         if (!timer || !timer.set)
             return;
 

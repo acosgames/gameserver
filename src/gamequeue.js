@@ -18,6 +18,7 @@ class GameQueue {
 
         this.gameActions = {};
 
+        this.lastProcessed = 0;
 
     }
 
@@ -42,10 +43,13 @@ class GameQueue {
     }
 
     async tryDequeue() {
-        if (this.isProcessing || this.actions.size() == 0) {
+        let now = (new Date()).getTime();
+        let elapsed = (now - this.lastProcessed) / 1000;
+        if ((this.isProcessing && elapsed < 60) || this.actions.size() == 0) {
             return;
         }
 
+        this.lastProcessed = now;
         this.isProcessing = true;
         {
             try {
@@ -81,9 +85,9 @@ class GameQueue {
             return;
         }
 
-        profiler.StartTime("GameQueue.tryRunGame");
+        // profiler.StartTime("GameQueue.tryRunGame");
         this.gameBusy[gamekey] = true;
-        {
+        try {
             let action = this.gameActions[gamekey].peek();
             let meta = await storage.getRoomMeta(action.room_slug);
 
@@ -106,11 +110,14 @@ class GameQueue {
                 this.isProcessing = false;
             }
         }
+        catch (e) {
+            console.error(e);
+        }
         this.gameBusy[gamekey] = false;
 
         this.tryRunGame(gamekey);
-        profiler.EndTime("GameQueue.tryRunGame");
-        profiler.EndTime('GameServer-loop');
+        // profiler.EndTime("GameQueue.tryRunGame");
+        // profiler.EndTime('GameServer-loop');
     }
 
 }

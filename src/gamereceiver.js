@@ -45,7 +45,8 @@ process.on('message', function (msg) {
 
 function cleanup() {
     let exchanges = rabbitmq.getInChannel().exchanges;
-    for (var exchange in exchanges) {
+    for (var key in exchanges) {
+        let exchange = exchanges[key];
         let parts = exchange.pattern.split('/');
         let game_slug = parts[0];
         let room_slug = parts[1];
@@ -57,19 +58,19 @@ function cleanup() {
 class GameReceiver {
 
     constructor() {
-        let queueKeyPath = './saved/queuekey.txt';
-        try {
-            let queuekey = fs.readFileSync(queueKeyPath, { encoding: 'utf8', flag: 'r' });
-            if (queuekey.length == 0)
-                throw "no key exists";
-            storage.setQueueKey(queuekey);
-        }
-        catch (e) {
-            let queuekey = generateAPIKEY();
-            storage.setQueueKey(queuekey);
-            fs.writeFileSync(queueKeyPath, queuekey);
-        }
-
+        // let queueKeyPath = './saved/queuekey.txt';
+        // try {
+        //     let queuekey = fs.readFileSync(queueKeyPath, { encoding: 'utf8', flag: 'r' });
+        //     if (queuekey.length == 0)
+        //         throw "no key exists";
+        //     storage.setQueueKey(queuekey);
+        // }
+        // catch (e) {
+        //     let queuekey = generateAPIKEY();
+        //     storage.setQueueKey(queuekey);
+        //     fs.writeFileSync(queueKeyPath, queuekey);
+        // }
+        this.qServer = null;
         this.gameQueue = null;
     }
 
@@ -86,7 +87,14 @@ class GameReceiver {
                 //return;
             }
 
-            rabbitmq.subscribe('serverWatch', 'healthRequest', this.onHealthCheck.bind(this));
+
+            this.qServer = await rabbitmq.subscribeAutoDelete('serverWatch', 'healthRequest', this.onHealthCheck.bind(this));
+            let qDecomission = await rabbitmq.subscribeAutoDelete('decomission', this.qServer, this.onDecomission.bind(this));
+
+            let qAction = await rabbitmq.findExistingQueue('action');
+            storage.setQueueKey(qAction);
+            rabbitmq.subscribeQueue(qAction, this.onNextAction.bind(this));
+
             rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
             events.addSkipListener(this.onSkip.bind(this));
             rs(true);
@@ -94,8 +102,28 @@ class GameReceiver {
 
     }
 
+    async onDecomission(msg) {
+        try {
+            //stop receiving new games
+            await rabbitmq.unsubscribeQueue('loadGame');
+
+            //exit once gameserver is idle for more than 30 minutes
+            while (true) {
+                let seconds = storage.getLastActionRunSeconds();
+                if (seconds > 1800) {
+                    process.exit(0);
+                    return;
+                }
+                await this.sleep(60000);
+            }
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }
+
     async onHealthCheck(msg) {
-        rabbitmq.publish('serverWatch', 'healthResponse', { id: storage.getQueueKey(), aps: storage.calculateActionRate() })
+        rabbitmq.publish('serverWatch', 'healthResponse', { id: this.qServer, aps: storage.calculateActionRate() })
     }
 
     async onSkip(msg) {
@@ -114,32 +142,25 @@ class GameReceiver {
         let meta = await storage.getRoomMeta(room_slug);
         let game_slug = meta.game_slug;
 
-        // let worker = this.games[game_slug];
-        // if (!storage.isLoaded(game_slug)) {
         let key = payload.key || (game_slug + '/' + room_slug);
         await this.createGameReceiver(key, initialActions);
-        // }
 
         events.emitLoadGame({ msg, meta });
         return true;
     }
 
     async onNextAction(actions) {
-        profiler.StartTime('GameServer-loop');
+        //profiler.StartTime('GameServer-loop');
 
         if (Array.isArray(actions)) {
-            // if (!storage.isLoaded(game_slug)) {
-            //     await this.createGameReceiver(game_slug, msg[0]);
-            // }
             for (let i = 0; i < actions.length; i++) {
-                events.emitNextAction(actions[i]);
+                if (actions[i])
+                    events.emitNextAction(actions[i]);
             }
         }
         else {
-            // if (!storage.isLoaded(game_slug)) {
-            //     await this.createGameReceiver(game_slug, msg);
-            // }
-            events.emitNextAction(actions);
+            if (actions)
+                events.emitNextAction(actions);
         }
 
         return true;
@@ -147,26 +168,23 @@ class GameReceiver {
 
     async createGameReceiver(key, initialActions) {
 
-
-        // await gamedownloader.downloadServerFiles(msg);
-        // let worker = storage.workers[this.nextWorker];
-        // storage.setLoaded(key, true);
-        // this.nextWorker = (this.nextWorker + 1) % this.workers.length;
-
-        let queuekey = await rabbitmq.subscribe('action', key, async (gameMessage) => {
+        //subscribe to the game room
+        storage.addRoom(key);
+        let queueKey = storage.getQueueKey();
+        await rabbitmq.subscribe('action', key, async (gameMessage) => {
             return await this.onNextAction(gameMessage);
-        }, storage.getQueueKey())
+        }, queueKey)
 
-        if (queuekey != storage.getQueueKey()) {
-            storage.setQueueKey(queuekey);
-            fs.writeFileSync(queueKeyPath, queuekey);
-        }
+        //save the queue key for restarts
+        // let queueKeyPath = './saved/queuekey.txt';
+        // if (queuekey != storage.getQueueKey()) {
+        //     storage.setQueueKey(queuekey);
+        //     fs.writeFileSync(queueKeyPath, queuekey);
+        // }
+
+        //run any initial actions sent with the load game request
         if (initialActions && initialActions.length > 0)
             this.onNextAction(initialActions);
-
-        // await rabbitmq.subscribeQueue(game_slug, async (gameMessage) => {
-        //     return await this.onNextAction(game_slug, gameMessage);
-        // });
 
         return true;
     }

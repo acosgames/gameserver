@@ -12,6 +12,7 @@ var globalRoomState = null;
 var globalAction = {};
 var globalResult = null;
 var globalDone = null;
+var globalErrors = [];
 
 var globals = {
     log: (msg) => { console.log(msg) },
@@ -59,6 +60,13 @@ class GameRunner {
     async killRoom(action, game, meta) {
         storage.clearRoomDeadline(action.room_slug);
         let key = meta.game_slug + '/' + action.room_slug;
+
+        for (var i = 0; i < globalErrors.length; i++) {
+            let error = globalErrors[i];
+
+            storage.addError(meta.gameid, meta.version, error);
+        }
+
         rabbitmq.unsubscribe('game', key, storage.getQueueKey());
     }
 
@@ -129,6 +137,7 @@ class GameRunner {
         let isGameover = (globalResult.events && globalResult.events.gameover);
 
         if (globalResult) {
+            globalResult = Object.assign({}, globalRoomState, globalResult);
             if (!isGameover)
                 gametimer.processTimelimit(globalResult.timer);
             await storage.saveRoomState(action, meta, globalResult);
@@ -187,6 +196,7 @@ class GameRunner {
     runScript(script) {
         if (!script) {
             console.error("Game script is not loaded.");
+            globalErrors = [{ "error": "Game script is not loaded.", payload: null }]
             return false;
         }
 
@@ -200,6 +210,25 @@ class GameRunner {
         }
         catch (e) {
             console.error("runScript Error: ", e);
+            let stack = e.stack;
+            stack = stack.replace(e.name + ': ' + e.message + '\n', '');
+            let parts = stack.split('\n');
+            let body = '';
+            for (var i = 0; i < parts.length; i++) {
+                let part = parts[i];
+                if (part.trim().length == 0)
+                    continue;
+                if (part.indexOf('vm.js') == -1)
+                    continue;
+                if (body.length > 0)
+                    body += '\n';
+                body += part;
+            }
+            globalErrors = [{
+                type: e.name,
+                title: e.message,
+                body
+            }]
             return false;
         }
     }
@@ -216,7 +245,7 @@ class GameRunner {
 
         // let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name }
+            globalRoomState.players[id] = { name, rank: 0, score: 0 }
             room.assignPlayerRoom(id, room_slug, action.game_slug);
         }
         else {
