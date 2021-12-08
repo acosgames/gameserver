@@ -169,7 +169,8 @@ class GameRunner {
 
         if (isGameover) {
             type = 'finish';
-            await rank.processPlayerRatings(meta, globalResult.players);
+            if (room.getGameModeName(meta.mode) == 'rank')
+                await rank.processPlayerRatings(meta, globalResult.players);
         }
 
 

@@ -1,5 +1,6 @@
 var { rating, rate, ordinal } = require('openskill');
 const room = require('fsg-shared/services/room');
+const { setPlayerRating } = require('fsg-shared/services/room');
 
 class Rank {
     constructor() { }
@@ -9,6 +10,13 @@ class Rank {
         //add saved ratings to players in openskill format
         storedPlayerRatings = storedPlayerRatings || {};
         let playerRatings = {};
+        let rankOne = [];
+        let rankOther = [];
+        let playerList = [];
+
+
+
+
         for (var id in players) {
             let player = players[id];
 
@@ -21,20 +29,55 @@ class Rank {
             }
 
             let playerRating = storedPlayerRatings[id];
+
             playerRating.rank = player.rank;
             if ((typeof player.score !== 'undefined')) {
                 playerRating.score = player.score;
             }
             playerRatings[id] = playerRating;
+
         }
 
-        // console.log("Before Rating: ", playerRatings);
+        for (var id in players) {
+            let player = players[id];
+            if ((typeof player.rank === 'undefined')) {
+                console.error("Player [" + id + "] (" + player.name + ") is missing rank")
+                return;
+            }
 
+            if (player.rank == 1) {
+                rankOne.push(storedPlayerRatings[id]);
+            }
+            else {
+                rankOther.push(storedPlayerRatings[id]);
+            }
+        }
+
+        let isTied = false;
+        if (rankOther.length == 0) {
+            isTied = true;
+            for (var playerRating of rankOne) {
+                playerRating.tie++;
+            }
+        }
+        else {
+            for (var playerRating of rankOne) {
+                playerRating.win++;
+            }
+            for (var playerRating of rankOther) {
+                playerRating.loss++;
+            }
+        }
+
+
+        // console.log("Before Rating: ", playerRatings);
         //run OpenSkill rating system
         this.calculateRanks(playerRatings);
 
         //update player ratings from openskill mutation of playerRatings
         let ratingsList = [];
+
+
         for (var id in players) {
             let player = players[id];
 
@@ -43,16 +86,22 @@ class Rank {
             }
             let rating = playerRatings[id];
             player.rating = rating.rating;
-            player.mu = rating.mu;
-            player.sigma = rating.sigma;
 
             ratingsList.push({
                 shortid: id,
                 game_slug: meta.game_slug,
                 rating: rating.rating,
                 mu: rating.mu,
-                sigma: rating.sigma
+                sigma: rating.sigma,
+                win: rating.win,
+                tie: rating.tie,
+                loss: rating.loss
             });
+
+            delete rating['rank'];
+            delete rating['score'];
+
+            setPlayerRating(id, meta.game_slug, rating);
         }
 
         room.updateAllPlayerRatings(ratingsList);
