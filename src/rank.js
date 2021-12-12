@@ -38,6 +38,12 @@ class Rank {
 
         }
 
+        let lowestRank = 99999;
+        for (var id in players) {
+            let player = players[id];
+            if (player.rank < lowestRank)
+                lowestRank = player.rank;
+        }
         for (var id in players) {
             let player = players[id];
             if ((typeof player.rank === 'undefined')) {
@@ -45,7 +51,7 @@ class Rank {
                 return;
             }
 
-            if (player.rank == 1) {
+            if (player.rank == lowestRank) {
                 rankOne.push(storedPlayerRatings[id]);
             }
             else {
