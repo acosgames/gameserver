@@ -110,7 +110,7 @@ class Storage {
         return this.gameDatabases[id];
     }
     setGameDatabase(id, db) {
-        this.gameDatabases[id] = game;
+        this.gameDatabases[id] = db;
     }
 
     async getRoomMeta(room_slug) {
