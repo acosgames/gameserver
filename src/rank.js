@@ -181,4 +181,77 @@ class Rank {
     }
 }
 
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+}
+
+function test() {
+
+    let r = new Rank();
+
+    let playerList = [];
+
+    //create players
+    for (var i = 0; i < 4; i++) {
+        let id = i;
+        let mu = 25;
+        let sigma = 5;
+        let player = {
+            id, mu, sigma
+        }
+        playerList.push(player);
+    }
+
+    //fight players
+
+    for (var i = 0; i < 10; i++) {
+        let player1id = 1;//getRandomInt(0, 2);
+        let player2id = 2;//getRandomInt(2, 4);
+        if (player1id == player2id) {
+            i--;
+            continue;
+        }
+
+        let player1 = playerList[player1id];
+        let player2 = playerList[player2id];
+
+        let players = {};
+        players[player1id] = player1;
+        players[player2id] = player2;
+
+
+        if (i < 980) {
+            player1.rank = 1;
+            player2.rank = 2;
+            player1.score = 10;
+            player2.score = 50;
+        }
+        else {
+            player2.rank = 1;
+            player1.rank = 2;
+            player2.score = 10;
+            player1.score = 50;
+        }
+
+
+
+        r.calculateFFA(players);
+    }
+
+    for (var i = 0; i < playerList.length; i++) {
+        console.log("Player [" + i + "] - mu:" + playerList[i].mu + ', sigma:' + playerList[i].sigma);
+    }
+
+
+
+
+
+
+}
+
+// test();
+
 module.exports = new Rank();
