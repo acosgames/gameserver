@@ -1,5 +1,8 @@
 var { rating, rate, ordinal } = require('openskill');
 const room = require('fsg-shared/services/room');
+const GameService = require('fsg-shared/services/game');
+const game = new GameService();
+
 const { setPlayerRating } = require('fsg-shared/services/room');
 
 class Rank {
@@ -91,7 +94,14 @@ class Rank {
                 continue;
             }
             let rating = playerRatings[id];
+
+            //UPDATE PLAYER data sent back, using private fields to hide the win/loss/tie/played counts from others
             player.rating = rating.rating;
+            player.ratingTxt = game.ratingToRank(rating.rating);
+            player._win = rating.win;
+            player._loss = rating.loss;
+            player._tie = rating.tie;
+            player._played = rating.played;
 
             ratingsList.push({
                 shortid: id,

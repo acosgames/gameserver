@@ -131,7 +131,7 @@ class GameReceiver {
         let meta = await storage.getRoomMeta(room_slug);
         let game_slug = meta.game_slug;
 
-        this.onNextAction(game_slug, msg);
+        this.onNextAction(msg);
     }
 
     async onLoadGame(payload) {
