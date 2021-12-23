@@ -66,7 +66,7 @@ class GameTimer {
             let roomTimer = await storage.getTimerData(room_slug);
 
 
-            if (!roomTimer || typeof roomTimer.seq == 'undefined' || roomTimer.seq != next.seq) {
+            if (!roomTimer || typeof roomTimer.end == 'undefined' || typeof roomTimer.seq == 'undefined' || roomTimer.seq != next.seq) {
                 this.deadlines.deq();
                 return;
             }
