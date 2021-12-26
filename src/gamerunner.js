@@ -6,6 +6,8 @@ const gametimer = require('./gametimer');
 const rank = require('./rank');
 const delta = require('fsg-shared/util/delta');
 const profiler = require('fsg-shared/util/profiler');
+const events = require('./events');
+
 // const { version } = require("os");
 var globalDatabase = null;
 var globalRoomState = null;
@@ -48,9 +50,15 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 function cloneObj(obj) {
-    if (typeof obj === 'object')
+    //if (typeof obj === 'object')
+    try {
         return JSON.parse(JSON.stringify(obj));
-    return obj;
+    }
+    catch (e) {
+        return null;
+    }
+
+    //return obj;
 }
 
 
@@ -60,6 +68,12 @@ class GameRunner {
     async killRoom(action, game, meta) {
         storage.clearRoomDeadline(action.room_slug);
         let key = meta.game_slug + '/' + action.room_slug;
+
+        // let roomState = await storage.getRoomState(room_slug);
+        // let players = roomState?.players;
+        // if( players ) {
+        //     for(var i=0; i<)
+        // }
 
         for (var i = 0; i < globalErrors.length; i++) {
             let error = globalErrors[i];
@@ -72,6 +86,14 @@ class GameRunner {
 
     async runAction(action, game, meta) {
         // profiler.StartTime("GameRunner.runAction");
+
+        if (action.type == 'noshow') {
+            let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { error: "Some players did not show up." } };
+            rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+            this.killRoom(action, game, meta);
+            return false;
+        }
+
         let passed = await this.runActionEx(action, game, meta);
         if (!passed) {
             let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
@@ -98,10 +120,18 @@ class GameRunner {
         if (globalRoomState.events)
             globalRoomState.events = {};
 
-
+        console.log("Executing Action: ", action);
 
         try {
             switch (action.type) {
+                case 'ready':
+                    await this.onPlayerReady(action);
+                    break;
+                case 'gamestart':
+                    // globalRoomState = storage.makeGame(false, globalRoomState);
+                    if (globalRoomState.state)
+                        globalRoomState.state.gamestart = true;
+                    break;
                 case 'join':
                     await this.onPlayerJoin(action);
                     break;
@@ -124,7 +154,7 @@ class GameRunner {
             action.timeleft = timeleft;
         }
 
-        let key = meta.gameid + '/server.db.' + meta.version + '.json';
+        let key = meta.game_slug + '/server.db.' + meta.version + '.json';
         let db = await storage.getGameDatabase(key);
 
         globalDatabase = db;
@@ -154,6 +184,14 @@ class GameRunner {
                     globalResult.events.join.id = action.user.id;
                 }
             }
+
+            let players = globalResult?.players;
+            let gamestart = globalResult?.state?.gamestart;
+            if (!gamestart) {
+                globalResult.timer = { set: 5 }
+                gametimer.processTimelimit(globalResult.timer);
+                gametimer.addRoomDeadline(room_slug, globalResult.timer)
+            }
             // globalResult.join = action.user.id;
         }
         else if (action.type == 'leave') {
@@ -165,6 +203,25 @@ class GameRunner {
             }
 
             // globalResult.leave = action.user.id;
+        }
+        else if (action.type == 'ready') {
+
+
+            let players = globalResult?.players;
+            if (players) {
+                let readyCnt = 0;
+                let playerCnt = 0;
+                for (var id in players) {
+                    if (players[id].ready)
+                        readyCnt++;
+                    playerCnt++;
+                }
+
+                if (playerCnt == readyCnt) {
+                    events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
+                }
+            }
+
         }
 
         if (isGameover) {
@@ -234,6 +291,20 @@ class GameRunner {
         }
     }
 
+    async onPlayerReady(action) {
+        let id = action.user.id;
+        let name = action.user.name;
+        let ready = true;
+        if (!(id in globalRoomState.players)) {
+            globalRoomState.players[id] = { name, rank: 0, score: 0, ready }
+            room.assignPlayerRoom(id, room_slug, action.game_slug);
+        }
+        else {
+            globalRoomState.players[id].ready = ready;
+        }
+
+
+    }
     async onPlayerJoin(action) {
         let id = action.user.id;
         let name = action.user.name;

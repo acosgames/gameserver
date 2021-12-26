@@ -26,6 +26,13 @@ class Events {
     emitSkip(payload) {
         emitter.emit('onSkip', payload);
     }
+
+    addGameStartListener(func) {
+        emitter.on('onGameStart', func);
+    }
+    emitGameStart(payload) {
+        emitter.emit('onGameStart', payload);
+    }
 }
 
 module.exports = new Events();

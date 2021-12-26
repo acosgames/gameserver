@@ -77,9 +77,20 @@ class GameTimer {
                 return;
 
 
-            let action = {
-                type: 'skip',
-                room_slug,
+            let roomState = await storage.getRoomState(room_slug);
+            let action = {};
+            if (roomState.state && !roomState.state.gamestart) {
+                action = {
+                    type: 'noshow',
+                    room_slug
+                }
+            }
+            else {
+                action = {
+                    type: 'skip',
+                    room_slug,
+                }
+
             }
 
             events.emitSkip(action);

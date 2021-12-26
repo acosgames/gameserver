@@ -93,7 +93,7 @@ class GameQueue {
 
             await gamedownloader.downloadServerFiles(action, meta);
 
-            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
+            let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);
 
             if (!gameServer) {

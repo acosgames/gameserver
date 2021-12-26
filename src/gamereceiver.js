@@ -97,6 +97,7 @@ class GameReceiver {
 
             rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
             events.addSkipListener(this.onSkip.bind(this));
+            events.addGameStartListener(this.onGameStart.bind(this));
             rs(true);
         })
 
@@ -129,7 +130,19 @@ class GameReceiver {
     async onSkip(msg) {
         let room_slug = msg.room_slug;
         let meta = await storage.getRoomMeta(room_slug);
-        let game_slug = meta.game_slug;
+        if (!meta)
+            return;
+        // let game_slug = meta.game_slug;
+
+        this.onNextAction(msg);
+    }
+
+    async onGameStart(msg) {
+        let room_slug = msg.room_slug;
+        let meta = await storage.getRoomMeta(room_slug);
+        if (!meta)
+            return;
+        // let game_slug = meta.game_slug;
 
         this.onNextAction(msg);
     }

@@ -114,7 +114,8 @@ class Storage {
     }
 
     async getRoomMeta(room_slug) {
-
+        if (!room_slug)
+            return null;
         let meta = await room.findRoom(room_slug);
         if (!meta) {
             return null;

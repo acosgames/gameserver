@@ -11,7 +11,7 @@ class GameDownloader {
         meta = meta || await storage.getRoomMeta(room_slug);
 
         try {
-            let key = meta.gameid + '/server.bundle.' + meta.version + '.js';
+            let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
 
             let gameServer = storage.getGameServer(key);
 
@@ -32,7 +32,7 @@ class GameDownloader {
             return;
 
         try {
-            let key = meta.gameid + '/server.db.' + meta.version + '.json';
+            let key = meta.game_slug + '/server.db.' + meta.version + '.json';
             let gameDatabase = storage.getGameDatabase(key);
             if (!gameDatabase || gameDatabase.lastupdate != meta.latest_tsupdate) {
                 gameDatabase = await this.downloadGameDatabase(key, meta);
