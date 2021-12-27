@@ -126,6 +126,9 @@ class Rank {
         return ratingsList;
     }
 
+
+
+
     calculateRanks(players, teams) {
 
         if (teams) {

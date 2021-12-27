@@ -15,6 +15,7 @@ var globalAction = {};
 var globalResult = null;
 var globalDone = null;
 var globalErrors = [];
+var globalIgnore = false;
 
 var globals = {
     log: (msg) => { console.log(msg) },
@@ -34,6 +35,9 @@ var globals = {
     },
     database: () => {
         return globalDatabase;
+    },
+    ignore: () => {
+        globalIgnore = true;
     }
 };
 
@@ -111,6 +115,7 @@ class GameRunner {
         // console.log('runAction', action);
         let room_slug = meta.room_slug;
         globalRoomState = await storage.getRoomState(room_slug);
+        globalIgnore = false;
         let previousRoomState = cloneObj(globalRoomState);
 
         // if (globalRoomState.join)
@@ -120,7 +125,7 @@ class GameRunner {
         if (globalRoomState.events)
             globalRoomState.events = {};
 
-        console.log("Executing Action: ", action);
+
 
         try {
             switch (action.type) {
@@ -164,6 +169,13 @@ class GameRunner {
         if (!succeeded) {
             return false;
         }
+
+        if (globalIgnore) {
+            return true;
+        }
+
+        console.log("Executed Action: ", action);
+
         let isGameover = (globalResult.events && globalResult.events.gameover);
 
         if (globalResult) {
@@ -226,8 +238,11 @@ class GameRunner {
 
         if (isGameover) {
             type = 'finish';
-            if (room.getGameModeName(meta.mode) == 'rank')
+            if (room.getGameModeName(meta.mode) == 'rank') {
                 await rank.processPlayerRatings(meta, globalResult.players);
+                await room.updateLeaderboard(meta.game_slug, globalResult.players);
+            }
+
         }
 
 
