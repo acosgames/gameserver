@@ -18,7 +18,7 @@ class GameTimer {
 
             this.processDeadlines();
 
-        }, 500)
+        }, 50)
     }
 
     calculateTimeleft(roomState) {
@@ -43,7 +43,7 @@ class GameTimer {
         if (typeof timer.set === 'undefined')
             return;
 
-        let seconds = Math.min(60, Math.max(10, timer.set));
+        let seconds = Math.min(300, Math.max(1, timer.set));
         let sequence = timer.seq || 0;
         let now = (new Date()).getTime();
         let deadline = now + (seconds * 1000);
@@ -57,83 +57,91 @@ class GameTimer {
     }
 
     async processDeadlines() {
+        let next = await storage.getNextTimer();
+        if (!next || !next.length)
+            return;
+
+        let action = await this.processDeadlinesEX(next[0]);
+        if (!action)
+            return;
+
+
+        if (typeof action === 'object') {
+            events.emitSkip(action);
+            await storage.removeTimer(action.room_slug);
+        }
+
+        this.processDeadlines();
+    }
+    async processDeadlinesEX(next) {
         try {
-            if (this.deadlines.size() == 0)
-                return;
-            let next = this.deadlines.peek();
-
-            let room_slug = next.room_slug;
-            let roomTimer = await storage.getTimerData(room_slug);
-
-
-            if (!roomTimer || typeof roomTimer.end == 'undefined' || typeof roomTimer.seq == 'undefined' || roomTimer.seq != next.seq) {
-                this.deadlines.deq();
-                return;
+            let room_slug = next.value;
+            let roomState = await storage.getRoomState(room_slug);
+            if (!roomState) {
+                await storage.removeTimer(room_slug);
+                return true;
             }
 
-            //haven't reached deadline, wait until next interval
             let now = (new Date()).getTime();
-            if (now < roomTimer.end)
-                return;
+            if (now < next.score)
+                return false;
 
-
-            let roomState = await storage.getRoomState(room_slug);
             let action = {};
-            if (roomState.state && !roomState.state.gamestart) {
+            if (!(roomState.state?.gamestatus)) {
+                console.log("timer ended: unkonwn");
                 action = {
                     type: 'noshow',
                     room_slug
                 }
             }
             else {
-                action = {
-                    type: 'skip',
-                    room_slug,
+                switch (roomState.state?.gamestatus) {
+                    case 'pregame':
+                        console.log("timer ended: pregame");
+                        action = {
+                            type: 'noshow',
+                            room_slug
+                        }
+                        break;
+                    case 'starting':
+                        console.log("timer ended: starting");
+                        action = {
+                            type: 'gamestart',
+                            room_slug,
+                        }
+                        break;
+                    case 'gamestart':
+                        console.log("timer ended: gamestart");
+                        action = {
+                            type: 'skip',
+                            room_slug,
+                        }
+                        break;
+                    case 'gameover':
+                        return;
                 }
-
             }
 
-            events.emitSkip(action);
-            // this.onNextAction(action);
-
-
-            this.deadlines.deq();
-            storage.clearRoomDeadline(room_slug);
-            this.processDeadlines();
+            return action;
         }
         catch (e) {
-            console.error("ProcessTime Error: ", e)
+            console.error(e);
         }
+    }
 
+    async removeRoomDeadline(room_slug) {
+        storage.removeTimer(room_slug);
     }
 
 
     async addRoomDeadline(room_slug, timer) {
-
-        if (typeof timer.seq === 'undefined')
+        if (!timer || !timer.end) {
             return;
-
-        let curTimer = await storage.getTimerData(room_slug);
-        if (curTimer && curTimer.seq == timer.seq)
-            return;
-
-        let data = {
-            room_slug,
-            seq: timer.seq,
-            end: timer.end,
         }
 
-        storage.setRoomDeadline(room_slug, data);
-
-        // this.cache[room_slug + '/timer'] = data;
-        // cache.set(room_slug + '/timer', data);
-        // redis.set(room_slug + '/timer', data);
-        this.deadlines.enq(data)
+        console.log("Adding timer: ", room_slug, timer);
+        storage.addTimer(room_slug, timer.end);
     }
-
-
-
-
 
 }
 

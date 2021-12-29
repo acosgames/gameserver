@@ -70,7 +70,7 @@ function cloneObj(obj) {
 class GameRunner {
 
     async killRoom(action, game, meta) {
-        storage.clearRoomDeadline(action.room_slug);
+        storage.removeTimer(action.room_slug);
         let key = meta.game_slug + '/' + action.room_slug;
 
         // let roomState = await storage.getRoomState(room_slug);
@@ -132,10 +132,24 @@ class GameRunner {
                 case 'ready':
                     await this.onPlayerReady(action);
                     break;
+                case 'pregame':
+                    // globalRoomState = storage.makeGame(false, globalRoomState);
+                    if (globalRoomState.state)
+                        globalRoomState.state.gamestatus = 'pregame';
+                    break;
+                case 'starting':
+                    if (globalRoomState.state)
+                        globalRoomState.state.gamestatus = 'starting';
+                    break;
                 case 'gamestart':
                     // globalRoomState = storage.makeGame(false, globalRoomState);
                     if (globalRoomState.state)
-                        globalRoomState.state.gamestart = true;
+                        globalRoomState.state.gamestatus = 'gamestart';
+                    break;
+                case 'gameover':
+                    // globalRoomState = storage.makeGame(false, globalRoomState);
+                    if (globalRoomState.state)
+                        globalRoomState.state.gamestatus = 'gameover';
                     break;
                 case 'join':
                     await this.onPlayerJoin(action);
@@ -174,15 +188,18 @@ class GameRunner {
             return true;
         }
 
-        console.log("Executed Action: ", action);
+        console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
         let isGameover = (globalResult.events && globalResult.events.gameover);
 
         if (globalResult) {
+
+            if (globalResult.state) {
+                globalResult.state.gamestatus = globalRoomState.state.gamestatus;
+            }
             globalResult = Object.assign({}, globalRoomState, globalResult);
-            if (!isGameover)
-                gametimer.processTimelimit(globalResult.timer);
-            await storage.saveRoomState(action, meta, globalResult);
+
+
         }
         let type = 'update';
 
@@ -198,11 +215,19 @@ class GameRunner {
             }
 
             let players = globalResult?.players;
-            let gamestart = globalResult?.state?.gamestart;
-            if (!gamestart) {
-                globalResult.timer = { set: 5 }
-                gametimer.processTimelimit(globalResult.timer);
-                gametimer.addRoomDeadline(room_slug, globalResult.timer)
+            let gamestatus = globalResult?.state?.gamestatus;
+            if (!gamestatus) {
+                if (globalResult.state) {
+                    let playerList = Object.keys(globalResult.players);
+                    if (playerList.length == 1) {
+                        globalResult.state.gamestatus = 'pregame';
+                        globalResult.timer = { set: 15 }
+                        gametimer.processTimelimit(globalResult.timer);
+                        gametimer.addRoomDeadline(room_slug, globalResult.timer)
+                    }
+
+                }
+
             }
             // globalResult.join = action.user.id;
         }
@@ -230,14 +255,31 @@ class GameRunner {
                 }
 
                 if (playerCnt == readyCnt) {
-                    events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
+                    globalResult.state.gamestatus = 'starting';
+                    globalResult.timer = { set: 3 }
+                    gametimer.processTimelimit(globalResult.timer);
+                    gametimer.addRoomDeadline(room_slug, globalResult.timer)
+
+                    // events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
                 }
             }
 
         }
+        else {
+            if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
+                // globalResult.timer.set = 100000;
+                gametimer.processTimelimit(globalResult.timer);
+                gametimer.addRoomDeadline(room_slug, globalResult.timer)
+            }
+            else {
+                globalRoomState.state.gamestatus = 'gameover';
+            }
+        }
+
+        await storage.saveRoomState(action, meta, globalResult);
 
         if (isGameover) {
-            type = 'finish';
+            type = 'gameover';
             if (room.getGameModeName(meta.mode) == 'rank') {
                 await rank.processPlayerRatings(meta, globalResult.players);
                 await room.updateLeaderboard(meta.game_slug, globalResult.players);
@@ -249,13 +291,13 @@ class GameRunner {
 
         let dlta = delta.delta(previousRoomState, globalResult, {});
 
-        // if (type == 'update' || type == 'finish' || type == 'error') {
+        // if (type == 'update' || type == 'gameover' || type == 'error') {
         rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
 
         if (type == 'update' && globalResult.timer) {
-            gametimer.addRoomDeadline(room_slug, globalResult.timer)
+
         }
-        else if (type == 'finish' || type == 'error') {
+        else if (type == 'gameover' || type == 'error') {
             this.killRoom(action, game, meta);
         }
         // }

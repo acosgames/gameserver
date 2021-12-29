@@ -160,6 +160,84 @@ class Storage {
         return timerData;
     }
 
+    async getNextTimer(gameserver_slug) {
+        gameserver_slug = this.getQueueKey();
+        if (!gameserver_slug)
+            return;
+
+        //caching to avoid querying redis too much
+        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        if (nexttimer && nexttimer.length > 0) {
+            // console.log('nexttimer', nexttimer);
+            return nexttimer;
+        }
+
+        //query redis for next timer
+        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, 10);
+
+        // console.log('zrevrange', result);
+        //cache next timer 
+        cache.setLocal(gameserver_slug + '/nexttimer', result);
+
+        return result;
+    }
+
+    async addTimer(room_slug, epoch) {
+        let gameserver_slug = this.getQueueKey();
+        if (!gameserver_slug)
+            return;
+        let roomTimer = { value: room_slug, score: epoch };
+        let result = await cache.zadd(gameserver_slug + '/timer', [roomTimer]);
+        // console.log(result);
+
+        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        if (nexttimer && nexttimer.length > 0) {
+            let found = false;
+            for (var i = 0; i < nexttimer.length; i++) {
+                if (nexttimer[i].value == room_slug) {
+                    nexttimer[i] = roomTimer;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                let pos = -1;
+                for (var i = 0; i < nexttimer.length; i++) {
+                    if (nexttimer[i].score < epoch) {
+                        pos = i;
+                        break;
+                    }
+                }
+                if (pos > -1) {
+                    nexttimer.splice(pos, 0, roomTimer);
+                }
+            }
+        }
+        cache.delLocal(gameserver_slug + '/nexttimer');
+
+        return result;
+    }
+
+    async removeTimer(room_slug) {
+        let gameserver_slug = this.getQueueKey();
+        if (!gameserver_slug)
+            return;
+        let result = await cache.zrem(gameserver_slug + '/timer', room_slug);
+        // console.log(result);
+        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        if (nexttimer && nexttimer.length > 0) {
+            let newnext = [];
+            for (var i = 0; i < nexttimer.length; i++) {
+                if (nexttimer[i].value != room_slug)
+                    newnext.push(nexttimer[i]);
+                cache.setLocal(gameserver_slug + '/nexttimer', newnext);
+            }
+
+        }
+
+        return result;
+    }
     async setRoomDeadline(room_slug, data) {
         cache.set(room_slug + '/timer', data);
     }
