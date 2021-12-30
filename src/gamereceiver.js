@@ -1,10 +1,10 @@
-const rabbitmq = require('fsg-shared/services/rabbitmq');
-const redis = require('fsg-shared/services/redis');
+const rabbitmq = require('shared/services/rabbitmq');
+const redis = require('shared/services/redis');
 const events = require('./events');
 const storage = require('./storage');
 const gamedownloader = require('./gamedownloader');
-const profiler = require('fsg-shared/util/profiler');
-const { generateAPIKEY } = require('fsg-shared/util/idgen');
+const profiler = require('shared/util/profiler');
+const { generateAPIKEY } = require('shared/util/idgen');
 const fs = require('fs');
 
 process.on('SIGTERM', signal => {

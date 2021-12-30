@@ -1,11 +1,11 @@
 const { VM, VMScript, NodeVM } = require('vm2');
-const rabbitmq = require('fsg-shared/services/rabbitmq');
-const room = require('fsg-shared/services/room');
+const rabbitmq = require('shared/services/rabbitmq');
+const room = require('shared/services/room');
 const storage = require('./storage');
 const gametimer = require('./gametimer');
 const rank = require('./rank');
-const delta = require('fsg-shared/util/delta');
-const profiler = require('fsg-shared/util/profiler');
+const delta = require('shared/util/delta');
+const profiler = require('shared/util/profiler');
 const events = require('./events');
 
 // const { version } = require("os");

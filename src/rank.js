@@ -1,9 +1,9 @@
 var { rating, rate, ordinal } = require('openskill');
-const room = require('fsg-shared/services/room');
-const GameService = require('fsg-shared/services/game');
+const room = require('shared/services/room');
+const GameService = require('shared/services/game');
 const game = new GameService();
 
-const { setPlayerRating } = require('fsg-shared/services/room');
+const { setPlayerRating } = require('shared/services/room');
 
 class Rank {
     constructor() { }

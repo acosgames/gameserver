@@ -1,16 +1,16 @@
 {
-  "name": "fsg-gameserver",
+  "name": "gameserver",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "start": "npm run dev",
-    "dev": "pm2 start index.js --name fsg-gameserver --node-args=\"--inspect=10003\" --watch \". ../fsg-shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
+    "dev": "pm2 start index.js --name gameserver --node-args=\"--inspect=10003\" --watch \". ../shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "axios": "^0.21.1",
-    "fsg-shared": "file:../fsg-shared",
+    "shared": "file:../shared",
     "node-cache": "^5.1.2",
     "openskill": "^1.4.1",
     "priorityqueuejs": "^2.0.0",

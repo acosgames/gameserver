@@ -1,6 +1,6 @@
 
-const room = require('fsg-shared/services/room');
-const { genShortId } = require('fsg-shared/util/idgen');
+const room = require('shared/services/room');
+const { genShortId } = require('shared/util/idgen');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));

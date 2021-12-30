@@ -1,24 +1,24 @@
 
-const { GeneralError } = require('fsg-shared/util/errorhandler');
-const credutil = require('fsg-shared/util/credentials');
-const { getLocalAddr } = require('fsg-shared/util/address');
+const { GeneralError } = require('shared/util/errorhandler');
+const credutil = require('shared/util/credentials');
+const { getLocalAddr } = require('shared/util/address');
 
-const InstanceLocalService = require('fsg-shared/services/instancelocal');
+const InstanceLocalService = require('shared/services/instancelocal');
 const local = new InstanceLocalService();
-const redis = require('fsg-shared/services/redis');
+const redis = require('shared/services/redis');
 
-const RedisService = require('fsg-shared/services/redis');
-const rabbitmq = require('fsg-shared/services/rabbitmq');
+const RedisService = require('shared/services/redis');
+const rabbitmq = require('shared/services/rabbitmq');
 
 const os = require('os')
 const cpuCount = Math.min(os.cpus().length - 1, 1);
 
-const profiler = require('fsg-shared/util/profiler')
+const profiler = require('shared/util/profiler')
 
 const { Worker } = require("worker_threads")
 
 var PriorityQueue = require('priorityqueuejs');
-const r = require('fsg-shared/services/room');
+const r = require('shared/services/room');
 
 
 module.exports = class WorkerManager {

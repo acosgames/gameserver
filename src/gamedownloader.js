@@ -1,4 +1,4 @@
-const ObjectStorageService = require("fsg-shared/services/objectstorage");
+const ObjectStorageService = require("shared/services/objectstorage");
 const s3 = new ObjectStorageService();
 const storage = require('./storage');
 const { VMScript } = require('vm2');

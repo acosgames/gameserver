@@ -2,16 +2,16 @@ const { workerData, parentPort } = require("worker_threads")
 const fs = require('fs');
 const { VM, VMScript, NodeVM } = require('vm2');
 
-const profiler = require('fsg-shared/util/profiler')
-const redis = require('fsg-shared/services/redis');
-const rabbitmq = require('fsg-shared/services/rabbitmq');
+const profiler = require('shared/util/profiler')
+const redis = require('shared/services/redis');
+const rabbitmq = require('shared/services/rabbitmq');
 const NodeCache = require("node-cache");
-const ObjectStorageService = require("fsg-shared/services/objectstorage");
+const ObjectStorageService = require("shared/services/objectstorage");
 const s3 = new ObjectStorageService();
-const r = require('fsg-shared/services/room');
+const r = require('shared/services/room');
 var Queue = require('queue-fifo');
-const cache = require('fsg-shared/services/cache');
-const delta = require('fsg-shared/util/delta');
+const cache = require('shared/services/cache');
+const delta = require('shared/util/delta');
 const rank = require('./rank');
 
 

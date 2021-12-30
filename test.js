@@ -1,4 +1,4 @@
-const { genUnique64string, generateAPIKEY } = require('fsg-shared/util/idgen');
+const { genUnique64string, generateAPIKEY } = require('shared/util/idgen');
 
 let id = genUnique64string({ datacenter: 0, worker: 0 });
 let apikey = generateAPIKEY();

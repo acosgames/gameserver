@@ -5,7 +5,7 @@ const storage = require('./storage');
 
 const gamedownloader = require('./gamedownloader');
 const gamerunner = require('./gamerunner');
-const profiler = require('fsg-shared/util/profiler');
+const profiler = require('shared/util/profiler');
 
 class GameQueue {
 
