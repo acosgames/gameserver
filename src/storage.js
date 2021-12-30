@@ -173,7 +173,7 @@ class Storage {
         }
 
         //query redis for next timer
-        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, 10);
+        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, 50);
 
         // console.log('zrevrange', result);
         //cache next timer 

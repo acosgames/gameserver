@@ -43,7 +43,7 @@ class GameTimer {
         if (typeof timer.set === 'undefined')
             return;
 
-        let seconds = Math.min(300, Math.max(1, timer.set));
+        let seconds = Math.min(3000000, Math.max(1, timer.set));
         let sequence = timer.seq || 0;
         let now = (new Date()).getTime();
         let deadline = now + (seconds * 1000);

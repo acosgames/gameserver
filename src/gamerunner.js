@@ -267,7 +267,7 @@ class GameRunner {
         }
         else {
             if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
-                // globalResult.timer.set = 100000;
+                globalResult.timer.set = 100000;
                 gametimer.processTimelimit(globalResult.timer);
                 gametimer.addRoomDeadline(room_slug, globalResult.timer)
             }
