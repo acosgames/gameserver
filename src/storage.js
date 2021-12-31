@@ -2,6 +2,9 @@
 const cache = require('shared/services/cache');
 const room = require('shared/services/room');
 
+var SortedSet = require('redis-sorted-set');
+
+
 class Storage {
 
     constructor() {
@@ -16,6 +19,9 @@ class Storage {
 
         this.roomCnt = 0;
         this.rooms = {};
+
+        this.timerSet = new SortedSet();
+        this.redisTimersLoaded = false;
 
         this.queuekey = null;
 
@@ -163,23 +169,49 @@ class Storage {
     async getNextTimer(gameserver_slug) {
         gameserver_slug = this.getQueueKey();
         if (!gameserver_slug)
-            return;
+            return false;
 
         //caching to avoid querying redis too much
-        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
-        if (nexttimer && nexttimer.length > 0) {
-            // console.log('nexttimer', nexttimer);
-            return nexttimer;
+        // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        // if (nexttimer && nexttimer.length > 0) {
+        //     // console.log('nexttimer', nexttimer);
+        //     return nexttimer;
+        // }
+        let nexttimer = this.timerSet.range(0, 0, { withScores: true });
+        if (nexttimer && nexttimer.length > 0)
+            nexttimer = nexttimer[0];
+
+        if (nexttimer && nexttimer.length == 2) {
+            return { value: nexttimer[0], score: nexttimer[1] };
         }
 
-        //query redis for next timer
-        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, 50);
+        if (this.redisTimersLoaded)
+            return false;
 
-        // console.log('zrevrange', result);
-        //cache next timer 
-        cache.setLocal(gameserver_slug + '/nexttimer', result);
+        //query redis for all timers
+        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, -1);
+        this.redisTimersLoaded = true;
+        if (!result || result.length == 0) {
+            return false;
+        }
 
-        return result;
+
+        //add redis results to our local sortedset
+        for (var i = 0; i < result.length; i++) {
+            let timer = result[i];
+            this.timerSet.add(timer.value, timer.score);
+        }
+
+        //find the next lowest
+        nexttimer = this.timerSet.range(-1, undefined, { withScores: true });
+        if (nexttimer && nexttimer.length > 0)
+            nexttimer = nexttimer[0];
+
+        if (nexttimer && nexttimer.length == 2) {
+            return { value: nexttimer[0], score: nexttimer[1] };
+        }
+
+        return false;
     }
 
     async addTimer(room_slug, epoch) {
@@ -187,34 +219,37 @@ class Storage {
         if (!gameserver_slug)
             return;
         let roomTimer = { value: room_slug, score: epoch };
-        let result = await cache.zadd(gameserver_slug + '/timer', [roomTimer]);
+        let result = cache.zadd(gameserver_slug + '/timer', [roomTimer]);
         // console.log(result);
 
-        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
-        if (nexttimer && nexttimer.length > 0) {
-            let found = false;
-            for (var i = 0; i < nexttimer.length; i++) {
-                if (nexttimer[i].value == room_slug) {
-                    nexttimer[i] = roomTimer;
-                    found = true;
-                    break;
-                }
-            }
 
-            if (!found) {
-                let pos = -1;
-                for (var i = 0; i < nexttimer.length; i++) {
-                    if (nexttimer[i].score < epoch) {
-                        pos = i;
-                        break;
-                    }
-                }
-                if (pos > -1) {
-                    nexttimer.splice(pos, 0, roomTimer);
-                }
-            }
-        }
-        cache.delLocal(gameserver_slug + '/nexttimer');
+        this.timerSet.add(room_slug, epoch);
+
+        // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        // if (nexttimer && nexttimer.length > 0) {
+        //     let found = false;
+        //     for (var i = 0; i < nexttimer.length; i++) {
+        //         if (nexttimer[i].value == room_slug) {
+        //             nexttimer[i] = roomTimer;
+        //             found = true;
+        //             break;
+        //         }
+        //     }
+
+        //     if (!found) {
+        //         let pos = -1;
+        //         for (var i = 0; i < nexttimer.length; i++) {
+        //             if (nexttimer[i].score < epoch) {
+        //                 pos = i;
+        //                 break;
+        //             }
+        //         }
+        //         if (pos > -1) {
+        //             nexttimer.splice(pos, 0, roomTimer);
+        //         }
+        //     }
+        // }
+        // cache.delLocal(gameserver_slug + '/nexttimer');
 
         return result;
     }
@@ -223,18 +258,21 @@ class Storage {
         let gameserver_slug = this.getQueueKey();
         if (!gameserver_slug)
             return;
-        let result = await cache.zrem(gameserver_slug + '/timer', room_slug);
-        // console.log(result);
-        let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
-        if (nexttimer && nexttimer.length > 0) {
-            let newnext = [];
-            for (var i = 0; i < nexttimer.length; i++) {
-                if (nexttimer[i].value != room_slug)
-                    newnext.push(nexttimer[i]);
-                cache.setLocal(gameserver_slug + '/nexttimer', newnext);
-            }
+        let result = cache.zrem(gameserver_slug + '/timer', room_slug);
 
-        }
+        this.timerSet.rem(room_slug);
+
+        // console.log(result);
+        // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        // if (nexttimer && nexttimer.length > 0) {
+        //     let newnext = [];
+        //     for (var i = 0; i < nexttimer.length; i++) {
+        //         if (nexttimer[i].value != room_slug)
+        //             newnext.push(nexttimer[i]);
+        //         cache.setLocal(gameserver_slug + '/nexttimer', newnext);
+        //     }
+
+        // }
 
         return result;
     }

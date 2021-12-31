@@ -70,22 +70,28 @@ function cloneObj(obj) {
 class GameRunner {
 
     async killRoom(action, game, meta) {
-        storage.removeTimer(action.room_slug);
-        let key = meta.game_slug + '/' + action.room_slug;
+        try {
+            storage.removeTimer(action.room_slug);
+            let key = meta.game_slug + '/' + action.room_slug;
 
-        // let roomState = await storage.getRoomState(room_slug);
-        // let players = roomState?.players;
-        // if( players ) {
-        //     for(var i=0; i<)
-        // }
+            // let roomState = await storage.getRoomState(room_slug);
+            // let players = roomState?.players;
+            // if( players ) {
+            //     for(var i=0; i<)
+            // }
 
-        for (var i = 0; i < globalErrors.length; i++) {
-            let error = globalErrors[i];
+            for (var i = 0; i < globalErrors.length; i++) {
+                let error = globalErrors[i];
 
-            storage.addError(meta.gameid, meta.version, error);
+                storage.addError(meta.gameid, meta.version, error);
+            }
+
+            rabbitmq.unsubscribe('game', key, storage.getQueueKey());
+        }
+        catch (e) {
+
         }
 
-        rabbitmq.unsubscribe('game', key, storage.getQueueKey());
     }
 
     async runAction(action, game, meta) {
@@ -221,7 +227,7 @@ class GameRunner {
                     let playerList = Object.keys(globalResult.players);
                     if (playerList.length == 1) {
                         globalResult.state.gamestatus = 'pregame';
-                        globalResult.timer = { set: 15 }
+                        globalResult.timer = { set: 100000 }
                         gametimer.processTimelimit(globalResult.timer);
                         gametimer.addRoomDeadline(room_slug, globalResult.timer)
                     }
@@ -256,7 +262,7 @@ class GameRunner {
 
                 if (playerCnt == readyCnt) {
                     globalResult.state.gamestatus = 'starting';
-                    globalResult.timer = { set: 3 }
+                    globalResult.timer = { set: 5 }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(room_slug, globalResult.timer)
 
@@ -267,7 +273,7 @@ class GameRunner {
         }
         else {
             if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
-                globalResult.timer.set = 100000;
+                // globalResult.timer.set = 100000;
                 gametimer.processTimelimit(globalResult.timer);
                 gametimer.addRoomDeadline(room_slug, globalResult.timer)
             }
@@ -281,8 +287,13 @@ class GameRunner {
         if (isGameover) {
             type = 'gameover';
             if (room.getGameModeName(meta.mode) == 'rank') {
-                await rank.processPlayerRatings(meta, globalResult.players);
-                await room.updateLeaderboard(meta.game_slug, globalResult.players);
+
+                if (globalResult?.timer?.seq > 2) {
+                    await rank.processPlayerRatings(meta, globalResult.players);
+                    await room.updateLeaderboard(meta.game_slug, globalResult.players);
+                }
+
+
             }
 
         }

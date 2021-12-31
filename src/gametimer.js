@@ -1,14 +1,9 @@
-var PriorityQueue = require('priorityqueuejs');
+
 const events = require('./events');
 const storage = require('./storage');
 class GameTimer {
 
     constructor() {
-
-        this.deadlines = new PriorityQueue(function (a, b) {
-            return b.end - a.end;
-        });
-
 
         this.setup();
     }
@@ -58,10 +53,10 @@ class GameTimer {
 
     async processDeadlines() {
         let next = await storage.getNextTimer();
-        if (!next || !next.length)
+        if (!next || !next.value)
             return;
 
-        let action = await this.processDeadlinesEX(next[0]);
+        let action = await this.processDeadlinesEX(next);
         if (!action)
             return;
 
@@ -128,6 +123,7 @@ class GameTimer {
             console.error(e);
         }
     }
+
 
     async removeRoomDeadline(room_slug) {
         storage.removeTimer(room_slug);
