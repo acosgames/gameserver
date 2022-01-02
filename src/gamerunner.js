@@ -227,7 +227,7 @@ class GameRunner {
                     let playerList = Object.keys(globalResult.players);
                     if (playerList.length == 1) {
                         globalResult.state.gamestatus = 'pregame';
-                        globalResult.timer = { set: 100000 }
+                        globalResult.timer = { set: 20 }
                         gametimer.processTimelimit(globalResult.timer);
                         gametimer.addRoomDeadline(room_slug, globalResult.timer)
                     }
