@@ -18,7 +18,13 @@ class Rank {
         let playerList = [];
 
 
-
+        let roomRatings = await room.findPlayerRatings(meta.room_slug, meta.game_slug);
+        if (roomRatings && roomRatings.length > 0) {
+            for (var i = 0; i < roomRatings.length; i++) {
+                let roomRating = roomRatings[i]
+                storedPlayerRatings[roomRating.shortid] = roomRating;
+            }
+        }
 
         for (var id in players) {
             let player = players[id];
@@ -79,6 +85,8 @@ class Rank {
         }
 
 
+
+
         // console.log("Before Rating: ", playerRatings);
         //run OpenSkill rating system
         this.calculateRanks(playerRatings);
@@ -94,6 +102,8 @@ class Rank {
                 continue;
             }
             let rating = playerRatings[id];
+
+            rating.played = Number(rating.played) + 1;
 
             //UPDATE PLAYER data sent back, using private fields to hide the win/loss/tie/played counts from others
             player.rating = rating.rating;
