@@ -124,6 +124,9 @@ class GameRunner {
         globalIgnore = false;
         let previousRoomState = cloneObj(globalRoomState);
 
+        if (globalRoomState?.events?.gameover) {
+            return false;
+        }
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
         // if (globalRoomState.leave)
