@@ -219,13 +219,10 @@ class GameRunner {
 
         if (action.type == 'join') {
             type = 'join';
-            if (!globalResult.events) {
-                if (!globalResult.events.join)
-                    globalResult.events.join = { id: action.user.id }
-                else if (!globalResult.events.join.id) {
-                    globalResult.events.join.id = action.user.id;
-                }
-            }
+            if (!globalResult.events)
+                globalResult.events = {}
+
+            globalResult.events.join = { id: action.user.id }
 
             let players = globalResult?.players;
             let gamestatus = globalResult?.state?.gamestatus;
@@ -246,11 +243,11 @@ class GameRunner {
         }
         else if (action.type == 'leave') {
             type = 'leave';
-            if (!globalResult.events.leave)
-                globalResult.events.leave = { id: action.user.id }
-            else if (!globalResult.events.leave.id) {
-                globalResult.events.leave.id = action.user.id;
-            }
+
+            if (!globalResult.events)
+                globalResult.events = {}
+
+            globalResult.events.leave = { id: action.user.id }
 
             // globalResult.leave = action.user.id;
         }
