@@ -96,21 +96,27 @@ class GameRunner {
 
     async runAction(action, game, meta) {
         // profiler.StartTime("GameRunner.runAction");
+        let passed = false;
+        try {
+            if (action.type == 'noshow') {
+                let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { error: "Some players did not show up." } };
+                rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                this.killRoom(action, game, meta);
+                return false;
+            }
 
-        if (action.type == 'noshow') {
-            let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { error: "Some players did not show up." } };
-            rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-            this.killRoom(action, game, meta);
-            return false;
+            passed = await this.runActionEx(action, game, meta);
+            if (!passed) {
+                let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
+                rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                this.killRoom(action, game, meta);
+            }
+            storage.processActionRate();
+        }
+        catch (e) {
+            console.error(e);
         }
 
-        let passed = await this.runActionEx(action, game, meta);
-        if (!passed) {
-            let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
-            rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-            this.killRoom(action, game, meta);
-        }
-        storage.processActionRate();
         // let aps = storage.calculateActionRate();
         // console.log("Actions Per Second = " + aps);
         // profiler.EndTime("GameRunner.runAction");
