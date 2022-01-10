@@ -34,7 +34,7 @@ var globals = {
         globalDone = true;
     },
     database: () => {
-        return globalDatabase;
+        return globalDatabase?.db || null;
     },
     ignore: () => {
         globalIgnore = true;
