@@ -237,7 +237,7 @@ class GameRunner {
                     let playerList = Object.keys(globalResult.players);
                     if (playerList.length == 1) {
                         globalResult.state.gamestatus = 'pregame';
-                        globalResult.timer = { set: 20 }
+                        globalResult.timer = { set: 60 }
                         gametimer.processTimelimit(globalResult.timer);
                         gametimer.addRoomDeadline(room_slug, globalResult.timer)
                     }
@@ -375,7 +375,7 @@ class GameRunner {
         let ready = true;
         if (!(id in globalRoomState.players)) {
             globalRoomState.players[id] = { name, rank: 0, score: 0, ready }
-            room.assignPlayerRoom(id, room_slug, action.game_slug);
+
         }
         else {
             globalRoomState.players[id].ready = ready;
@@ -396,7 +396,7 @@ class GameRunner {
         // let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
         if (!(id in globalRoomState.players)) {
             globalRoomState.players[id] = { name, rank: 0, score: 0 }
-            room.assignPlayerRoom(id, room_slug, action.game_slug);
+            // room.assignPlayerRoom(id, room_slug, action.game_slug);
         }
         else {
             globalRoomState.players[id].name = name;
