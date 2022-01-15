@@ -258,7 +258,7 @@ class Storage {
         let gameserver_slug = this.getQueueKey();
         if (!gameserver_slug)
             return;
-        let result = cache.zrem(gameserver_slug + '/timer', room_slug);
+        let result = cache.zrem(gameserver_slug + '/timer', [room_slug]);
 
         this.timerSet.rem(room_slug);
 
