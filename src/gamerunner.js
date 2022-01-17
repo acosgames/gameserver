@@ -99,7 +99,7 @@ class GameRunner {
         let passed = false;
         try {
             if (action.type == 'noshow') {
-                let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { error: "Some players did not show up." } };
+                let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
                 rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
                 this.killRoom(action, game, meta);
                 return false;
@@ -107,7 +107,7 @@ class GameRunner {
 
             passed = await this.runActionEx(action, game, meta);
             if (!passed) {
-                let outMessage = { type: 'error', room_slug: action.room_slug, payload: { error: "Game crashed. Please report bug." } };
+                let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
                 rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
                 this.killRoom(action, game, meta);
             }
@@ -237,7 +237,7 @@ class GameRunner {
                     let playerList = Object.keys(globalResult.players);
                     if (playerList.length == 1) {
                         globalResult.state.gamestatus = 'pregame';
-                        globalResult.timer = { set: 60 }
+                        globalResult.timer = { set: 3 }
                         gametimer.processTimelimit(globalResult.timer);
                         gametimer.addRoomDeadline(room_slug, globalResult.timer)
                     }
@@ -318,7 +318,7 @@ class GameRunner {
         if (type == 'update' && globalResult.timer) {
 
         }
-        else if (type == 'gameover' || type == 'error') {
+        else if (isGameover || type == 'error') {
             this.killRoom(action, game, meta);
         }
         // }
