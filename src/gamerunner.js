@@ -401,7 +401,9 @@ class GameRunner {
         else {
             globalRoomState.players[id].name = name;
         }
+        let meta = await storage.getRoomMeta(room_slug);
 
+        await room.assignPlayerRoom(id, room_slug, meta.game_slug);
         //this.saveRoomState(room_slug, roomState);
         // this.mq.publish('ws', 'onJoinResponse', { type: 'join', payload: { id, room_slug } });
         // parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
