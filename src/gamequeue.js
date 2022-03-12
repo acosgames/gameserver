@@ -58,6 +58,7 @@ class GameQueue {
                 let meta = await storage.getRoomMeta(action.room_slug);
                 if (!meta) {
                     this.isProcessing = false;
+                    console.log("tryDequeue missing meta", action.room_slug, action.user);
                     return;
                 }
 
@@ -99,6 +100,7 @@ class GameQueue {
             let gameServer = storage.getGameServer(key);
 
             if (!gameServer) {
+                console.log("tryRunGame missing gameserver", gamekey);
                 this.gameBusy[gamekey] = false;
                 this.tryRunGame(gamekey);
                 return;
