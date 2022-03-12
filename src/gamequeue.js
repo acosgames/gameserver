@@ -93,7 +93,14 @@ class GameQueue {
         try {
             let action = this.gameActions[gamekey].peek();
             let meta = await storage.getRoomMeta(action.room_slug);
-
+            if (!meta) {
+                let gamekey = meta.game_slug + meta.version;
+                this.gameActions[gamekey].clear();
+                this.isProcessing = false;
+                this.gameBusy[gamekey] = false;
+                this.tryRunGame(gamekey);
+                return;
+            }
             await gamedownloader.downloadServerFiles(action, meta);
 
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
