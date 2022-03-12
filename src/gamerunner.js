@@ -124,7 +124,7 @@ class GameRunner {
     }
 
     async runActionEx(action, game, meta) {
-        // console.log('runAction', action);
+        console.log('runAction', action);
         let room_slug = meta.room_slug;
         globalRoomState = await storage.getRoomState(room_slug);
         globalIgnore = false;
@@ -179,6 +179,13 @@ class GameRunner {
                 case 'reset':
                     globalRoomState = storage.makeGame(false, globalRoomState);
                     break;
+                default:
+                    if (action.user.id && globalRoomState?.timer?.seq != action.seq) {
+                        //user must use the same sequence as the script
+                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.seq);
+                        return false;
+                    }
+                    break;
             }
         }
         catch (e) {
@@ -186,11 +193,7 @@ class GameRunner {
             return false;
         }
 
-        if (action.user.id && globalRoomState?.timer?.seq != action.seq) {
-            //user must use the same sequence as the script
-            console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.seq);
-            return false;
-        }
+
 
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
