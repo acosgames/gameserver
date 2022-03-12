@@ -46,6 +46,7 @@ class GameQueue {
         let now = (new Date()).getTime();
         let elapsed = (now - this.lastProcessed) / 1000;
         if ((this.isProcessing && elapsed < 60) || this.actions.size() == 0) {
+            console.log("tryDequeue busy", this.isProcessing, elapsed, this.actions.size());
             return;
         }
 
@@ -82,6 +83,7 @@ class GameQueue {
     async tryRunGame(gamekey) {
 
         if (this.gameBusy[gamekey] || !this.gameActions[gamekey] || this.gameActions[gamekey].size() == 0) {
+            console.log("tryRunGame busy", this.gameBusy[gamekey]);
             return;
         }
 
