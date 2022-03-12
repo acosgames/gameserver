@@ -186,7 +186,7 @@ class GameRunner {
             return false;
         }
 
-        if (action.user && globalRoomState?.timer?.seq != action.seq) {
+        if (action.user.id && globalRoomState?.timer?.seq != action.seq) {
             //user must use the same sequence as the script
             return false;
         }
