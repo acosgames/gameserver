@@ -179,8 +179,10 @@ class GameRunner {
                 case 'reset':
                     globalRoomState = storage.makeGame(false, globalRoomState);
                     break;
+                case 'skip':
+                    break;
                 default:
-                    if (action.user.id && globalRoomState?.timer?.seq != action.seq) {
+                    if (action?.user?.id && globalRoomState?.timer?.seq != action.seq) {
                         //user must use the same sequence as the script
                         console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.seq);
                         return false;
