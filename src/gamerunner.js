@@ -306,7 +306,7 @@ class GameRunner {
             }
         }
 
-        await storage.saveRoomState(action, meta, globalResult);
+
 
         if (isGameover) {
             type = 'gameover';
@@ -334,6 +334,7 @@ class GameRunner {
 
         }
 
+        await storage.saveRoomState(action, meta, globalResult);
 
 
         let dlta = delta.delta(previousRoomState, globalResult, {});
