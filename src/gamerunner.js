@@ -310,6 +310,7 @@ class GameRunner {
 
         if (isGameover) {
             type = 'gameover';
+            console.log("GAMEOVER: ", meta, globalResult)
             if (room.getGameModeName(meta.mode) == 'rank') {
                 let storedPlayerRatings = {};
                 if (globalResult?.timer?.seq > 2) {
