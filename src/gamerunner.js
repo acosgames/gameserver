@@ -325,6 +325,7 @@ class GameRunner {
                 }
 
                 if (meta.lbscore || meta.maxplayers == 1) {
+                    console.log("Updating high scores: ", globalResult.players);
                     await rank.processPlayerHighscores(meta, globalResult.players, storedPlayerRatings);
                     await room.updateLeaderboardHighscore(meta.game_slug, globalResult.players);
                 }

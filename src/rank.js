@@ -41,9 +41,11 @@ class Rank {
                     highscore: player.score || 0
                 });
                 player.highscore = player.score;
+                console.log("New high score for player: ", id, player.score, player.highscore);
             }
             else {
                 player.highscore = storedPlayerRatings[id].highscore;
+                console.log("Old high score for player: ", id, player.score, player.highscore);
             }
 
 
