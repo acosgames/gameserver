@@ -221,7 +221,7 @@ class GameRunner {
         console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
         let isGameover = (globalResult.events && globalResult.events.gameover);
-
+        console.log('isGameover: ', isGameover, globalResult.events);
         if (globalResult) {
 
             //don't allow users to override the status
