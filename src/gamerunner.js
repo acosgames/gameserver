@@ -220,7 +220,7 @@ class GameRunner {
 
         console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
-        let isGameover = (delta.isObject(globalResult) && ('events' in globalresult) && ('gameover' in globalResult.events));
+        let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
         console.log('isGameover: ', isGameover, globalResult.events);
         if (globalResult) {
 
