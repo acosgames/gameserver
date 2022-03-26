@@ -8,6 +8,54 @@ const { setPlayerRating } = require('shared/services/room');
 class Rank {
     constructor() { }
 
+
+    async processPlayerHighscores(meta, players, storedPlayerRatings) {
+
+        storedPlayerRatings = storedPlayerRatings || {};
+
+        let roomRatings = await room.findPlayerRatings(meta.room_slug, meta.game_slug);
+        if (roomRatings && roomRatings.length > 0) {
+            for (var i = 0; i < roomRatings.length; i++) {
+                let roomRating = roomRatings[i]
+                storedPlayerRatings[roomRating.shortid] = roomRating;
+            }
+        }
+
+        let highScoreList = [];
+
+        for (var id in players) {
+            let player = players[id];
+
+            if (!(id in storedPlayerRatings)) {
+                storedPlayerRatings[id] = await room.findPlayerRating(id, meta.game_slug);
+            }
+            if ((typeof player.score === 'undefined')) {
+                console.error("Player [" + id + "] (" + player.name + ") is missing score")
+                return;
+            }
+
+            if (player.score > storedPlayerRatings[id].highscore) {
+                highScoreList.push({
+                    shortid: id,
+                    game_slug: meta.game_slug,
+                    highscore: player.score || 0
+                });
+                player.highscore = player.score;
+            }
+            else {
+                player.highscore = storedPlayerRatings[id].highscore;
+            }
+
+
+        }
+
+        if (highScoreList.length > 0)
+            room.updateAllPlayerHighscores(highScoreList);
+
+
+
+    }
+
     async processPlayerRatings(meta, players, storedPlayerRatings) {
 
         //add saved ratings to players in openskill format
@@ -113,6 +161,8 @@ class Rank {
             player._tie = rating.tie;
             player._played = rating.played;
 
+
+
             ratingsList.push({
                 shortid: id,
                 game_slug: meta.game_slug,
@@ -121,7 +171,8 @@ class Rank {
                 sigma: rating.sigma,
                 win: rating.win,
                 tie: rating.tie,
-                loss: rating.loss
+                loss: rating.loss,
+                highscore: rating.score || 0
             });
 
             delete rating['rank'];

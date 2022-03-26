@@ -224,6 +224,7 @@ class GameRunner {
 
         if (globalResult) {
 
+            //don't allow users to override the status
             if (globalResult.state) {
                 globalResult.state.gamestatus = globalRoomState.state.gamestatus;
             }
@@ -241,6 +242,7 @@ class GameRunner {
 
             globalResult.events.join = { id: action.user.id }
 
+            //start the game if its the first player to join room
             let players = globalResult?.players;
             let gamestatus = globalResult?.state?.gamestatus;
             if (!gamestatus) {
@@ -283,7 +285,8 @@ class GameRunner {
 
                 if (playerCnt == readyCnt) {
                     globalResult.state.gamestatus = 'starting';
-                    globalResult.timer = { set: 4 }
+                    let startTime = meta.maxplayers == 1 ? 2 : 4;
+                    globalResult.timer = { set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(room_slug, globalResult.timer)
 
@@ -308,10 +311,22 @@ class GameRunner {
         if (isGameover) {
             type = 'gameover';
             if (room.getGameModeName(meta.mode) == 'rank') {
-
+                let storedPlayerRatings = {};
                 if (globalResult?.timer?.seq > 2) {
-                    await rank.processPlayerRatings(meta, globalResult.players);
-                    await room.updateLeaderboard(meta.game_slug, globalResult.players);
+
+
+                    if (meta.maxplayers > 1) {
+                        await rank.processPlayerRatings(meta, globalResult.players, storedPlayerRatings);
+                        await room.updateLeaderboard(meta.game_slug, globalResult.players);
+                    }
+
+
+
+                }
+
+                if (meta.lbscore || meta.maxplayers == 1) {
+                    await rank.processPlayerHighscores(meta, globalResult.players, storedPlayerRatings);
+                    await room.updateLeaderboardHighscore(meta.game_slug, globalResult.players);
                 }
 
 
@@ -412,7 +427,7 @@ class GameRunner {
         else {
             globalRoomState.players[id].name = name;
         }
-        let meta = await storage.getRoomMeta(room_slug);
+        // let meta = await storage.getRoomMeta(room_slug);
 
 
 
