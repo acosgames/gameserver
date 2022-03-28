@@ -45,6 +45,11 @@ class Rank {
             }
             else {
                 player.highscore = storedPlayerRatings[id].highscore;
+                highScoreList.push({
+                    shortid: id,
+                    game_slug: meta.game_slug,
+                    highscore: player.highscore || 0
+                });
                 console.log("Old high score for player: ", id, player.score, player.highscore);
             }
 
