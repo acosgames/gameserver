@@ -41,7 +41,7 @@ class Rank {
                     highscore: player.score || 0
                 });
                 player.highscore = player.score;
-                console.log("New high score for player: ", id, player.score, player.highscore);
+                console.log("NEW high score for player: ", id, player.score, player.highscore);
             }
             else {
                 player.highscore = storedPlayerRatings[id].highscore;
@@ -50,14 +50,14 @@ class Rank {
                     game_slug: meta.game_slug,
                     highscore: player.highscore || 0
                 });
-                console.log("Old high score for player: ", id, player.score, player.highscore);
+                console.log("OLD high score for player: ", id, player.score, player.highscore);
             }
 
 
         }
 
         if (highScoreList.length > 0)
-            room.updateAllPlayerHighscores(highScoreList);
+            room.updateAllPlayerHighscores(highScoreList, meta.maxplayers == 1);
 
 
 
