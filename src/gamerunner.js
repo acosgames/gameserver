@@ -258,6 +258,8 @@ class GameRunner {
                 }
 
             }
+
+
             // globalResult.join = action.user.id;
         }
         else if (action.type == 'leave') {

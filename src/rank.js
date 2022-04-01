@@ -1,4 +1,5 @@
 var { rating, rate, ordinal } = require('openskill');
+const rabbitmq = require('shared/services/rabbitmq');
 const room = require('shared/services/room');
 const GameService = require('shared/services/game');
 const game = new GameService();
@@ -21,7 +22,11 @@ class Rank {
             }
         }
 
+        const game_slug = meta.game_slug;
+        const room_slug = meta.room_slug;
         let highScoreList = [];
+
+        let gameinfo = await room.getGameInfo(game_slug);
 
         for (var id in players) {
             let player = players[id];
@@ -42,6 +47,8 @@ class Rank {
                 });
                 player.highscore = player.score;
                 console.log("NEW high score for player: ", id, player.score, player.highscore);
+
+                rabbitmq.publishQueue('notifyDiscord', { 'type': 'score', user: player.name, game_title: (gameinfo?.name || game_slug), game_slug, room_slug, score: player.score, highscore: player.score, thumbnail: (gameinfo?.preview_images || '') })
             }
             else {
                 player.highscore = storedPlayerRatings[id].highscore;
@@ -51,7 +58,9 @@ class Rank {
                     highscore: player.highscore || 0
                 });
                 console.log("OLD high score for player: ", id, player.score, player.highscore);
+                rabbitmq.publishQueue('notifyDiscord', { 'type': 'score', user: player.name, game_title: (gameinfo?.name || game_slug), game_slug, room_slug, highscore: player.highscore, score: player.score, thumbnail: (gameinfo?.preview_images || '') })
             }
+
 
 
         }
@@ -65,6 +74,9 @@ class Rank {
 
     async processPlayerRatings(meta, players, storedPlayerRatings) {
 
+        const game_slug = meta?.game_slug;
+        const room_slug = meta?.room_slug;
+
         //add saved ratings to players in openskill format
         storedPlayerRatings = storedPlayerRatings || {};
         let playerRatings = {};
@@ -73,7 +85,7 @@ class Rank {
         let playerList = [];
 
 
-        let roomRatings = await room.findPlayerRatings(meta.room_slug, meta.game_slug);
+        let roomRatings = await room.findPlayerRatings(room_slug, game_slug);
         if (roomRatings && roomRatings.length > 0) {
             for (var i = 0; i < roomRatings.length; i++) {
                 let roomRating = roomRatings[i]
@@ -85,7 +97,7 @@ class Rank {
             let player = players[id];
 
             if (!(id in storedPlayerRatings)) {
-                storedPlayerRatings[id] = await room.findPlayerRating(id, meta.game_slug);
+                storedPlayerRatings[id] = await room.findPlayerRating(id, game_slug);
             }
             if ((typeof player.rank === 'undefined')) {
                 console.error("Player [" + id + "] (" + player.name + ") is missing rank")
@@ -149,6 +161,7 @@ class Rank {
         //update player ratings from openskill mutation of playerRatings
         let ratingsList = [];
 
+        let notifyInfo = [];
 
         for (var id in players) {
             let player = players[id];
@@ -169,6 +182,13 @@ class Rank {
             player._played = rating.played;
 
 
+            notifyInfo.push({
+                name: player.displayname,
+                rank: player.rank,
+                score: player.score,
+                rating: player.rating,
+                ratingTxt: player.ratingTxt,
+            })
 
             ratingsList.push({
                 shortid: id,
@@ -187,6 +207,8 @@ class Rank {
 
             setPlayerRating(id, meta.game_slug, rating);
         }
+
+        rabbitmq.publishQueue('notifyDiscord', { 'type': 'gameover', users: notifyInfo, game_slug, room_slug, game_title: (meta?.name || game_slug), thumbnail: (meta?.preview_images || '') })
 
         room.updateAllPlayerRatings(ratingsList);
 
