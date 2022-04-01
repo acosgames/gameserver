@@ -183,7 +183,7 @@ class Rank {
 
 
             notifyInfo.push({
-                name: player.displayname,
+                name: player.name,
                 rank: player.rank,
                 score: player.score,
                 rating: player.rating,
@@ -208,7 +208,9 @@ class Rank {
             setPlayerRating(id, meta.game_slug, rating);
         }
 
-        rabbitmq.publishQueue('notifyDiscord', { 'type': 'gameover', users: notifyInfo, game_slug, room_slug, game_title: (meta?.name || game_slug), thumbnail: (meta?.preview_images || '') })
+        let gameinfo = await room.getGameInfo(game_slug);
+
+        rabbitmq.publishQueue('notifyDiscord', { 'type': 'gameover', users: notifyInfo, game_slug, room_slug, game_title: (gameinfo?.name || game_slug), thumbnail: (gameinfo?.preview_images || '') })
 
         room.updateAllPlayerRatings(ratingsList);
 
