@@ -6,6 +6,7 @@ const gamedownloader = require('./gamedownloader');
 const profiler = require('shared/util/profiler');
 const { generateAPIKEY } = require('shared/util/idgen');
 const fs = require('fs');
+const gamerunner = require('./gamerunner');
 
 process.on('SIGTERM', signal => {
     cleanup();
@@ -153,6 +154,11 @@ class GameReceiver {
 
         let room_slug = msg.room_slug;
         let meta = await storage.getRoomMeta(room_slug);
+        if (!meta) {
+            rabbitmq.publish('ws', 'onRoomUpdate', { type: 'error', room_slug, payload: true });
+            return false;
+        }
+
         let game_slug = meta.game_slug;
 
         let key = payload.key || (game_slug + '/' + room_slug);

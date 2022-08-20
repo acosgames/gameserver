@@ -7,6 +7,7 @@ const rank = require('./rank');
 const delta = require('shared/util/delta');
 const profiler = require('shared/util/profiler');
 const events = require('./events');
+const onJoin = require('../../websocket/src/onJoin');
 
 // const { version } = require("os");
 var globalDatabase = null;
@@ -176,9 +177,9 @@ class GameRunner {
                 case 'leave':
                     await room.removePlayerRoom(action.user.id, room_slug)
                     break;
-                case 'reset':
-                    globalRoomState = storage.makeGame(false, globalRoomState);
-                    break;
+                // case 'reset':
+                //     globalRoomState = storage.makeGame(false, globalRoomState);
+                //     break;
                 case 'skip':
                     break;
                 default:
@@ -197,13 +198,64 @@ class GameRunner {
 
 
 
+        await this.executeScript(game, action);
+
+        let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
+        console.log('isGameover: ', isGameover, globalResult.events);
+
+        let type = 'update';
+
+
+        if (action.type == 'join') {
+            type = 'join';
+            this.onJoin(room_slug, action);
+        }
+        else if (action.type == 'leave') {
+            type = 'leave';
+            this.onLeave(action);
+
+        }
+        else if (action.type == 'ready') {
+            this.onReady(meta);
+        }
+        else {
+            if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
+                // globalResult.timer.set = 100000;
+                gametimer.processTimelimit(globalResult.timer);
+                gametimer.addRoomDeadline(room_slug, globalResult.timer)
+            }
+            else {
+                globalRoomState.state.gamestatus = 'gameover';
+            }
+        }
+
+
+        if (isGameover) {
+            type = 'gameover';
+            await this.onGameover(meta);
+        }
+
+        await storage.saveRoomState(action, meta, globalResult);
+        let dlta = delta.delta(previousRoomState, globalResult, {});
+        rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
+
+        if (isGameover || type == 'error') {
+            this.killRoom(action, game, meta);
+        }
+
+        // profiler.EndTime('WorkerManagerLoop');
+        // console.timeEnd('ActionLoop');
+        return true;
+    }
+
+    async executeScript(game, action) {
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
             action.seq = globalRoomState.timer.seq || 0;
             action.timeleft = timeleft;
         }
 
-        let key = meta.game_slug + '/server.db.' + meta.version + '.json';
+        let key = game.game_slug + '/server.db.' + game.version + '.json';
         let db = await storage.getGameDatabase(key);
 
         globalDatabase = db;
@@ -220,145 +272,103 @@ class GameRunner {
 
         console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
-        let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
-        console.log('isGameover: ', isGameover, globalResult.events);
         if (globalResult) {
-
-            //don't allow users to override the status
+            //don't allow users to override the gamestatus
             if (globalResult.state) {
                 globalResult.state.gamestatus = globalRoomState.state.gamestatus;
             }
             globalResult = Object.assign({}, globalRoomState, globalResult);
-
-
         }
-        let type = 'update';
-
-
-        if (action.type == 'join') {
-            type = 'join';
-            if (!globalResult.events)
-                globalResult.events = {}
-
-            globalResult.events.join = { id: action.user.id }
-
-            //start the game if its the first player to join room
-            let players = globalResult?.players;
-            let gamestatus = globalResult?.state?.gamestatus;
-            if (!gamestatus) {
-                if (globalResult.state) {
-                    let playerList = Object.keys(globalResult.players);
-                    if (playerList.length == 1) {
-                        globalResult.state.gamestatus = 'pregame';
-                        globalResult.timer = { set: 60 }
-                        gametimer.processTimelimit(globalResult.timer);
-                        gametimer.addRoomDeadline(room_slug, globalResult.timer)
-                    }
-
-                }
-
-            }
-
-
-            // globalResult.join = action.user.id;
-        }
-        else if (action.type == 'leave') {
-            type = 'leave';
-
-            if (!globalResult.events)
-                globalResult.events = {}
-
-            globalResult.events.leave = { id: action.user.id }
-
-            // globalResult.leave = action.user.id;
-        }
-        else if (action.type == 'ready') {
-
-
-            let players = globalResult?.players;
-            if (players) {
-                let readyCnt = 0;
-                let playerCnt = 0;
-                for (var id in players) {
-                    if (players[id].ready)
-                        readyCnt++;
-                    playerCnt++;
-                }
-
-                if (playerCnt == readyCnt) {
-                    globalResult.state.gamestatus = 'starting';
-                    let startTime = meta.maxplayers == 1 ? 2 : 4;
-                    globalResult.timer = { set: startTime }
-                    gametimer.processTimelimit(globalResult.timer);
-                    gametimer.addRoomDeadline(room_slug, globalResult.timer)
-
-                    // events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
-                }
-            }
-
-        }
-        else {
-            if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
-                // globalResult.timer.set = 100000;
-                gametimer.processTimelimit(globalResult.timer);
-                gametimer.addRoomDeadline(room_slug, globalResult.timer)
-            }
-            else {
-                globalRoomState.state.gamestatus = 'gameover';
-            }
-        }
-
-
-
-        if (isGameover) {
-            type = 'gameover';
-            console.log("GAMEOVER: ", meta, globalResult)
-            if (room.getGameModeName(meta.mode) == 'rank' || meta.mode == 'rank') {
-                let storedPlayerRatings = {};
-                if (globalResult?.timer?.seq > 2) {
-
-
-                    if (meta.maxplayers > 1) {
-                        await rank.processPlayerRatings(meta, globalResult.players, storedPlayerRatings);
-                        await room.updateLeaderboard(meta.game_slug, globalResult.players);
-                    }
-
-
-
-                }
-
-                if (meta.lbscore || meta.maxplayers == 1) {
-                    console.log("Updating high scores: ", globalResult.players);
-                    await rank.processPlayerHighscores(meta, globalResult.players, storedPlayerRatings);
-                    await room.updateLeaderboardHighscore(meta.game_slug, globalResult.players);
-                }
-
-
-            }
-
-        }
-
-        await storage.saveRoomState(action, meta, globalResult);
-
-
-        let dlta = delta.delta(previousRoomState, globalResult, {});
-
-        // if (type == 'update' || type == 'gameover' || type == 'error') {
-        rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
-
-        if (type == 'update' && globalResult.timer) {
-
-        }
-        else if (isGameover || type == 'error') {
-            this.killRoom(action, game, meta);
-        }
-        // }
-        // profiler.EndTime('WorkerManagerLoop');
-        // this.sendMessageToManager({ type, room_slug, timer: globalResult.timer });
-        // console.timeEnd('ActionLoop');
-        return true;
     }
 
+    addEvent(type, payload) {
+        if (!globalResult.events)
+            globalResult.events = {}
+
+        let events = globalResult.events
+        let event = events[type];
+        if (!(type in events)) {
+            event = payload;
+        }
+        else if (!Array.isArray(event)) {
+            event = [event];
+        }
+        else {
+            event.push(payload);
+        }
+
+        globalResult.events[type] = event;
+    }
+
+    onLeave(action) {
+        this.addEvent('leave', { id: action.user.id });
+    }
+    onJoin(room_slug, action) {
+
+        if (!globalResult.events)
+            globalResult.events = {}
+
+        globalResult.events.join = { id: action.user.id }
+
+        //start the game if its the first player to join room
+        let players = globalResult?.players;
+        let gamestatus = globalResult?.state?.gamestatus;
+        if (!gamestatus) {
+            if (globalResult.state) {
+                let playerList = Object.keys(players);
+                if (playerList.length == 1) {
+                    globalResult.state.gamestatus = 'pregame';
+                    globalResult.timer = { set: 60 }
+                    gametimer.processTimelimit(globalResult.timer);
+                    gametimer.addRoomDeadline(room_slug, globalResult.timer)
+                }
+
+            }
+
+        }
+    }
+    onReady(meta) {
+        let players = globalResult?.players;
+        if (players) {
+            let readyCnt = 0;
+            let playerCnt = 0;
+            for (var id in players) {
+                if (players[id].ready)
+                    readyCnt++;
+                playerCnt++;
+            }
+
+            if (playerCnt == readyCnt) {
+                globalResult.state.gamestatus = 'starting';
+                let startTime = meta.maxplayers == 1 ? 2 : 4;
+                globalResult.timer = { set: startTime }
+                gametimer.processTimelimit(globalResult.timer);
+                gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
+
+                // events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
+            }
+        }
+    }
+
+    async onGameover(meta) {
+
+        console.log("GAMEOVER: ", meta, globalResult)
+        if (room.getGameModeName(meta.mode) == 'rank' || meta.mode == 'rank') {
+            let storedPlayerRatings = {};
+            if (globalResult?.timer?.seq > 2) {
+                if (meta.maxplayers > 1) {
+                    await rank.processPlayerRatings(meta, globalResult.players, storedPlayerRatings);
+                    await room.updateLeaderboard(meta.game_slug, globalResult.players);
+                }
+            }
+
+            if (meta.lbscore || meta.maxplayers == 1) {
+                console.log("Updating high scores: ", globalResult.players);
+                await rank.processPlayerHighscores(meta, globalResult.players, storedPlayerRatings);
+                await room.updateLeaderboardHighscore(meta.game_slug, globalResult.players);
+            }
+        }
+    }
 
     runScript(script) {
         if (!script) {
@@ -414,6 +424,7 @@ class GameRunner {
 
 
     }
+
     async onPlayerJoin(action) {
         let id = action.user.id;
         let name = action.user.name;
@@ -424,22 +435,12 @@ class GameRunner {
             return;
         }
 
-        // let roomState = globalRoomState;//let roomState = await this.getRoomState(room_slug);
         if (!(id in globalRoomState.players)) {
             globalRoomState.players[id] = { name, rank: 0, score: 0 }
-            // room.assignPlayerRoom(id, room_slug, action.game_slug);
         }
         else {
             globalRoomState.players[id].name = name;
         }
-        // let meta = await storage.getRoomMeta(room_slug);
-
-
-
-
-        //this.saveRoomState(room_slug, roomState);
-        // this.mq.publish('ws', 'onJoinResponse', { type: 'join', payload: { id, room_slug } });
-        // parentPort.postMessage({ type: 'join', payload: { id, room_slug } });
     }
 
 
