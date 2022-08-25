@@ -70,7 +70,7 @@ function cloneObj(obj) {
 
 class GameRunner {
 
-    async killRoom(action, game, meta) {
+    async killRoom(action, meta) {
         try {
             storage.removeTimer(action.room_slug);
             let key = meta.game_slug + '/' + action.room_slug;
@@ -84,7 +84,7 @@ class GameRunner {
             for (var i = 0; i < globalErrors.length; i++) {
                 let error = globalErrors[i];
 
-                storage.addError(meta.gameid, meta.version, error);
+                storage.addError(meta.game_slug, meta.version, error);
             }
 
             rabbitmq.unsubscribe('game', key, storage.getQueueKey());
@@ -102,7 +102,7 @@ class GameRunner {
             if (action.type == 'noshow') {
                 let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
                 rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                this.killRoom(action, game, meta);
+                this.killRoom(action, meta);
                 return false;
             }
 
@@ -110,7 +110,7 @@ class GameRunner {
             if (!passed) {
                 let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
                 rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                this.killRoom(action, game, meta);
+                this.killRoom(action, meta);
             }
             storage.processActionRate();
         }
@@ -240,7 +240,7 @@ class GameRunner {
         rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
 
         if (isGameover || type == 'error') {
-            this.killRoom(action, game, meta);
+            this.killRoom(action, meta);
         }
 
         // profiler.EndTime('WorkerManagerLoop');
@@ -340,12 +340,18 @@ class GameRunner {
 
             if (playerCnt == readyCnt) {
                 globalResult.state.gamestatus = 'starting';
-                let startTime = meta.maxplayers == 1 ? 2 : 4;
-                globalResult.timer = { set: startTime }
-                gametimer.processTimelimit(globalResult.timer);
-                gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
 
-                // events.emitGameStart({ type: 'gamestart', room_slug, payload: null });
+
+
+                if (meta.maxplayers == 1) {
+                    events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
+                }
+                else {
+                    let startTime = 4;
+                    globalResult.timer = { set: startTime }
+                    gametimer.processTimelimit(globalResult.timer);
+                    gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
+                }
             }
         }
     }

@@ -48,8 +48,8 @@ class Storage {
         return this.queuekey;
     }
 
-    async addError(gameid, version, error) {
-        return await room.addError(gameid, version, error);
+    async addError(game_slug, version, error) {
+        return await room.addError(game_slug, version, error);
     }
 
     getLastActionRunSeconds() {
