@@ -28,13 +28,18 @@ class GameQueue {
 
     onNextAction(action) {
 
-        if (!action.type) {
-            console.error("Not an action: ", action);
+        let firstAction = action;
+        if (Array.isArray(action)) {
+            firstAction = action[0];
+        }
+
+        if (!firstAction.type) {
+            console.error("Not an action: ", firstAction);
             return;
         }
 
-        if (!action.room_slug) {
-            console.error("Missing room_slug: ", action);
+        if (!firstAction.room_slug) {
+            console.error("Missing room_slug: ", firstAction);
             return;
         }
 
@@ -55,10 +60,15 @@ class GameQueue {
         {
             try {
                 let action = this.actions.dequeue();
-                let meta = await storage.getRoomMeta(action.room_slug);
+                let firstAction = action;
+                if (Array.isArray(action)) {
+                    firstAction = action[0];
+                }
+
+                let meta = await storage.getRoomMeta(firstAction.room_slug);
                 if (!meta) {
                     this.isProcessing = false;
-                    console.log("tryDequeue missing meta", action.room_slug, action.user);
+                    console.log("tryDequeue missing meta", firstAction.room_slug, firstAction.user);
                     return;
                 }
 
@@ -79,6 +89,14 @@ class GameQueue {
         this.tryDequeue();
     }
 
+    // if (Array.isArray(actions)) {
+    //     for (let i = 0; i < actions.length; i++) {
+    //         if (actions[i])
+    //             events.emitNextAction(actions[i]);
+    //     }
+    // }
+
+
     //keeps a nested queue for game + version, since downloading server js and db takes time
     // we want to ensure the actions are processed in correct order and must wait for the files to be downloaded
     async tryRunGame(gamekey) {
@@ -92,7 +110,13 @@ class GameQueue {
         this.gameBusy[gamekey] = true;
         try {
             let action = this.gameActions[gamekey].peek();
-            let meta = await storage.getRoomMeta(action.room_slug);
+            let firstAction = action;
+            if (Array.isArray(firstAction)) {
+                firstAction = action[0];
+            }
+
+
+            let meta = await storage.getRoomMeta(firstAction.room_slug);
             if (!meta) {
                 let gamekey = meta.game_slug + meta.version;
                 this.gameActions[gamekey].clear();
@@ -101,7 +125,7 @@ class GameQueue {
                 this.tryRunGame(gamekey);
                 return;
             }
-            await gamedownloader.downloadServerFiles(action, meta);
+            await gamedownloader.downloadServerFiles(firstAction, meta);
 
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);

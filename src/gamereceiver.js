@@ -171,16 +171,19 @@ class GameReceiver {
     async onNextAction(actions) {
         //profiler.StartTime('GameServer-loop');
 
-        if (Array.isArray(actions)) {
-            for (let i = 0; i < actions.length; i++) {
-                if (actions[i])
-                    events.emitNextAction(actions[i]);
-            }
+        if (actions) {
+            events.emitNextAction(actions);
         }
-        else {
-            if (actions)
-                events.emitNextAction(actions);
-        }
+        // if (Array.isArray(actions)) {
+        //     for (let i = 0; i < actions.length; i++) {
+        //         if (actions[i])
+        //             events.emitNextAction(actions[i]);
+        //     }
+        // }
+        // else {
+        //     if (actions)
+        //         events.emitNextAction(actions);
+        // }
 
         return true;
     }

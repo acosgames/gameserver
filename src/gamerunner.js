@@ -95,23 +95,55 @@ class GameRunner {
 
     }
 
-    async runAction(action, game, meta) {
+    async runAction(incomingActions, game, meta) {
         // profiler.StartTime("GameRunner.runAction");
         let passed = false;
         try {
-            if (action.type == 'noshow') {
-                let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
-                rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                this.killRoom(action, meta);
-                return false;
+            let actions = null;
+            if (Array.isArray(incomingActions)) {
+                actions = incomingActions;
+            } else {
+                actions = [incomingActions];
             }
 
-            passed = await this.runActionEx(action, game, meta);
-            if (!passed) {
-                let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
-                rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                this.killRoom(action, meta);
+            let isGameover = false;
+            let finalDelta = null;
+            let responseType = 'join';
+
+            for (let action of actions) {
+                if (action.type == 'noshow') {
+                    let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
+                    rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                    this.killRoom(action, meta);
+                    return false;
+                }
+
+                passed = await this.runActionEx(action, game, meta);
+                if (!passed) {
+                    let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
+                    rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                    this.killRoom(action, meta);
+                } else {
+                    // let {type, isGameover, dlta} = passed;
+
+                    finalDelta = passed.dlta;
+
+                    if (passed.isGameover) {
+                        isGameover = true;
+                    }
+                    responseType = passed.type;
+
+                    if (isGameover || responseType == 'error') {
+                        rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: action.room_slug, payload: finalDelta });
+                        this.killRoom(action, meta);
+                        return false;
+                    }
+
+                }
             }
+
+            rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: finalDelta });
+
             storage.processActionRate();
         }
         catch (e) {
@@ -129,14 +161,16 @@ class GameRunner {
         let room_slug = meta.room_slug;
         globalRoomState = await storage.getRoomState(room_slug);
         globalIgnore = false;
-        let previousRoomState = cloneObj(globalRoomState);
+
 
         if (!globalRoomState)
             return false;
 
         if (globalRoomState?.events?.gameover) {
-            return true;
+            return false;
         }
+
+        let previousRoomState = cloneObj(globalRoomState);
 
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
@@ -150,7 +184,7 @@ class GameRunner {
         try {
             switch (action.type) {
                 case 'ready':
-                    await this.onPlayerReady(action);
+                    this.onPlayerReady(action);
                     break;
                 case 'pregame':
                     // globalRoomState = storage.makeGame(false, globalRoomState);
@@ -172,10 +206,10 @@ class GameRunner {
                         globalRoomState.state.gamestatus = 'gameover';
                     break;
                 case 'join':
-                    await this.onPlayerJoin(action);
+                    this.onPlayerJoin(action);
                     break;
                 case 'leave':
-                    await room.removePlayerRoom(action.user.id, room_slug)
+                    room.removePlayerRoom(action.user.id, room_slug)
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
@@ -203,15 +237,15 @@ class GameRunner {
         let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
         console.log('isGameover: ', isGameover, globalResult.events);
 
-        let type = 'update';
+        let responseType = 'update';
 
 
         if (action.type == 'join') {
-            type = 'join';
+            responseType = 'join';
             this.onJoin(room_slug, action);
         }
         else if (action.type == 'leave') {
-            type = 'leave';
+            responseType = 'leave';
             this.onLeave(action);
 
         }
@@ -231,21 +265,17 @@ class GameRunner {
 
 
         if (isGameover) {
-            type = 'gameover';
+            responseType = 'gameover';
             await this.onGameover(meta);
         }
 
         await storage.saveRoomState(action, meta, globalResult);
         let dlta = delta.delta(previousRoomState, globalResult, {});
-        rabbitmq.publish('ws', 'onRoomUpdate', { type, room_slug, payload: dlta });
 
-        if (isGameover || type == 'error') {
-            this.killRoom(action, meta);
-        }
 
         // profiler.EndTime('WorkerManagerLoop');
         // console.timeEnd('ActionLoop');
-        return true;
+        return { type: responseType, isGameover, dlta };
     }
 
     async executeScript(game, action) {
@@ -416,7 +446,7 @@ class GameRunner {
         }
     }
 
-    async onPlayerReady(action) {
+    onPlayerReady(action) {
         let id = action.user.id;
         let name = action.user.name;
         let ready = true;
@@ -431,7 +461,7 @@ class GameRunner {
 
     }
 
-    async onPlayerJoin(action) {
+    onPlayerJoin(action) {
         let id = action.user.id;
         let name = action.user.name;
         let room_slug = action.room_slug;
