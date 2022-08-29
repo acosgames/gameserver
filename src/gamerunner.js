@@ -209,7 +209,7 @@ class GameRunner {
                     this.onPlayerJoin(action);
                     break;
                 case 'leave':
-                    room.removePlayerRoom(action.user.id, room_slug)
+                    room.removePlayerRoom(action.user.shortid, room_slug)
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
@@ -300,7 +300,7 @@ class GameRunner {
             return true;
         }
 
-        console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
+        console.log("Executed Action: ", action.type, action.room_slug, action.user?.shortid);
 
         if (globalResult) {
             //don't allow users to override the gamestatus
@@ -331,14 +331,14 @@ class GameRunner {
     }
 
     onLeave(action) {
-        this.addEvent('leave', { id: action.user.id });
+        this.addEvent('leave', { id: action.user.shortid });
     }
     onJoin(room_slug, action) {
 
         if (!globalResult.events)
             globalResult.events = {}
 
-        globalResult.events.join = { id: action.user.id }
+        globalResult.events.join = { id: action.user.shortid }
 
         //start the game if its the first player to join room
         let players = globalResult?.players;
@@ -447,8 +447,8 @@ class GameRunner {
     }
 
     onPlayerReady(action) {
-        let id = action.user.id;
-        let name = action.user.name;
+        let id = action.user.shortid;
+        let name = action.user.displayname;
         let ready = true;
         if (!(id in globalRoomState.players)) {
             globalRoomState.players[id] = { name, rank: 0, score: 0, ready }
@@ -462,8 +462,8 @@ class GameRunner {
     }
 
     onPlayerJoin(action) {
-        let id = action.user.id;
-        let name = action.user.name;
+        let id = action.user.shortid;
+        let name = action.user.displayname;
         let room_slug = action.room_slug;
 
         if (!id) {
@@ -472,10 +472,22 @@ class GameRunner {
         }
 
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, rank: 0, score: 0 }
+            globalRoomState.players[id] = { name, rank: 0, score: 0, rating: action.user.rating }
         }
         else {
             globalRoomState.players[id].name = name;
+        }
+
+        if (action.user.team_slug) {
+
+            if (!globalRoomState.teams) {
+                globalRoomState.teams = {};
+            }
+            if (!(action.user.team_slug in globalRoomState.teams)) {
+                globalRoomState.teams[action.user.team_slug] = { players: [] }
+            }
+
+            globalRoomState.teams[action.user.team_slug].players.push(action.user.shortid);
         }
     }
 
