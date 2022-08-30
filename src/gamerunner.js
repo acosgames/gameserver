@@ -18,6 +18,8 @@ var globalDone = null;
 var globalErrors = [];
 var globalIgnore = false;
 
+var globalSkipCount = {};
+
 var globals = {
     log: (msg) => { console.log(msg) },
     error: (msg) => { console.error(msg) },
@@ -70,10 +72,10 @@ function cloneObj(obj) {
 
 class GameRunner {
 
-    async killRoom(action, meta) {
+    async killRoom(room_slug, meta) {
         try {
-            storage.removeTimer(action.room_slug);
-            let key = meta.game_slug + '/' + action.room_slug;
+            storage.removeTimer(room_slug);
+            let key = meta.game_slug + '/' + room_slug;
 
             // let roomState = await storage.getRoomState(room_slug);
             // let players = roomState?.players;
@@ -109,12 +111,20 @@ class GameRunner {
             let isGameover = false;
             let finalDelta = null;
             let responseType = 'join';
+            let joinIds = [];
+
+
+            globalRoomState = await storage.getRoomState(meta.room_slug);
+            if (globalRoomState.events)
+                globalRoomState.events = {};
+
+            let previousRoomState = cloneObj(globalRoomState);
 
             for (let action of actions) {
                 if (action.type == 'noshow') {
                     let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
                     rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                    this.killRoom(action, meta);
+                    this.killRoom(meta.room_slug, meta);
                     return false;
                 }
 
@@ -122,27 +132,31 @@ class GameRunner {
                 if (!passed) {
                     let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
                     rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
-                    this.killRoom(action, meta);
+                    this.killRoom(meta.room_slug, meta);
+                    return false;
                 } else {
-                    // let {type, isGameover, dlta} = passed;
-
-                    finalDelta = passed.dlta;
-
-                    if (passed.isGameover) {
-                        isGameover = true;
-                    }
-                    responseType = passed.type;
-
-                    if (isGameover || responseType == 'error') {
-                        rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: action.room_slug, payload: finalDelta });
-                        this.killRoom(action, meta);
+                    if (passed.isGameover || passed.type == 'error') {
+                        await storage.saveRoomState(responseType, meta, globalResult);
+                        let deltaState = delta.delta(previousRoomState, globalResult, {});
+                        rabbitmq.publish('ws', 'onRoomUpdate', { type: passed.type, room_slug: action.room_slug, payload: deltaState });
+                        this.killRoom(meta.room_slug, meta);
                         return false;
                     }
 
+                    responseType = passed.type;
                 }
             }
 
-            rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: finalDelta });
+            if (responseType == 'join' && globalRoomState.players) {
+                for (const shortid in globalRoomState.players) {
+                    joinIds.push(shortid)
+                }
+                globalResult.events['join'] = joinIds;
+            }
+
+            await storage.saveRoomState(responseType, meta, globalResult);
+            let deltaState = delta.delta(previousRoomState, globalResult, {});
+            rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: deltaState });
 
             storage.processActionRate();
         }
@@ -159,7 +173,7 @@ class GameRunner {
     async runActionEx(action, game, meta) {
         console.log('runAction', action);
         let room_slug = meta.room_slug;
-        globalRoomState = await storage.getRoomState(room_slug);
+
         globalIgnore = false;
 
 
@@ -170,14 +184,13 @@ class GameRunner {
             return false;
         }
 
-        let previousRoomState = cloneObj(globalRoomState);
+
 
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
         // if (globalRoomState.leave)
         //     delete globalRoomState['leave'];
-        if (globalRoomState.events)
-            globalRoomState.events = {};
+
 
 
 
@@ -209,12 +222,20 @@ class GameRunner {
                     this.onPlayerJoin(action);
                     break;
                 case 'leave':
-                    room.removePlayerRoom(action.user.shortid, room_slug)
+                    room.removePlayerRoom(action.user.id, room_slug)
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
                 //     break;
                 case 'skip':
+                    if (!(room_slug in globalSkipCount))
+                        globalSkipCount[room_slug] = 0
+                    globalSkipCount[room_slug]++;
+
+                    if (globalSkipCount[room_slug] > 5) {
+                        console.log("Too many skips: ", action);
+                        return false;
+                    }
                     break;
                 default:
                     if (action?.user?.id && globalRoomState?.timer?.seq != action.seq) {
@@ -230,6 +251,9 @@ class GameRunner {
             return false;
         }
 
+        if (action.type != 'skip') {
+            delete globalSkipCount[room_slug];
+        }
 
 
         await this.executeScript(game, action);
@@ -269,13 +293,13 @@ class GameRunner {
             await this.onGameover(meta);
         }
 
-        await storage.saveRoomState(action, meta, globalResult);
-        let dlta = delta.delta(previousRoomState, globalResult, {});
+
+
 
 
         // profiler.EndTime('WorkerManagerLoop');
         // console.timeEnd('ActionLoop');
-        return { type: responseType, isGameover, dlta };
+        return { type: responseType, isGameover };
     }
 
     async executeScript(game, action) {
@@ -300,7 +324,7 @@ class GameRunner {
             return true;
         }
 
-        console.log("Executed Action: ", action.type, action.room_slug, action.user?.shortid);
+        console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
         if (globalResult) {
             //don't allow users to override the gamestatus
@@ -331,14 +355,14 @@ class GameRunner {
     }
 
     onLeave(action) {
-        this.addEvent('leave', { id: action.user.shortid });
+        this.addEvent('leave', { id: action.user.id });
     }
     onJoin(room_slug, action) {
 
         if (!globalResult.events)
             globalResult.events = {}
 
-        globalResult.events.join = { id: action.user.shortid }
+        globalResult.events.join = { id: action.user.id }
 
         //start the game if its the first player to join room
         let players = globalResult?.players;
@@ -447,7 +471,7 @@ class GameRunner {
     }
 
     onPlayerReady(action) {
-        let id = action.user.shortid;
+        let id = action.user.id;
         let name = action.user.displayname;
         let ready = true;
         if (!(id in globalRoomState.players)) {
@@ -462,7 +486,7 @@ class GameRunner {
     }
 
     onPlayerJoin(action) {
-        let id = action.user.shortid;
+        let id = action.user.id;
         let name = action.user.displayname;
         let room_slug = action.room_slug;
 
@@ -487,7 +511,7 @@ class GameRunner {
                 globalRoomState.teams[action.user.team_slug] = { players: [] }
             }
 
-            globalRoomState.teams[action.user.team_slug].players.push(action.user.shortid);
+            globalRoomState.teams[action.user.team_slug].players.push(action.user.id);
         }
     }
 

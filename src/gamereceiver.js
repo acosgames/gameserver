@@ -148,9 +148,9 @@ class GameReceiver {
         this.onNextAction(msg);
     }
 
-    async onLoadGame(payload) {
-        let msg = payload.msg;
-        let initialActions = payload.actions;
+    async onLoadGame(msg) {
+      
+        let initialActions = msg.actions;
 
         let room_slug = msg.room_slug;
         let meta = await storage.getRoomMeta(room_slug);
@@ -161,7 +161,7 @@ class GameReceiver {
 
         let game_slug = meta.game_slug;
 
-        let key = payload.key || (game_slug + '/' + room_slug);
+        let key = msg.key || (game_slug + '/' + room_slug);
         await this.createGameReceiver(key, initialActions);
 
         events.emitLoadGame({ msg, meta });

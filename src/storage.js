@@ -145,10 +145,10 @@ class Storage {
         return game;
     }
 
-    async saveRoomState(action, meta, roomState) {
+    async saveRoomState(type, meta, roomState) {
         let room_slug = meta.room_slug;
 
-        if (action.type == 'join' || action.type == 'leave') {
+        if (type == 'join' || type == 'leave') {
             let playerList = Object.keys(roomState.players);
 
             try {
