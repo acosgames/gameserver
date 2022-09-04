@@ -151,7 +151,7 @@ class GameRunner {
                 for (const shortid in globalRoomState.players) {
                     joinIds.push(shortid)
                 }
-                globalResult.events['join'] = joinIds;
+                globalResult.events.join = joinIds;
             }
 
             await storage.saveRoomState(responseType, meta, globalResult);
@@ -303,18 +303,22 @@ class GameRunner {
     }
 
     async executeScript(game, action) {
+
+        //add timeleft to the action for games to use
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
             action.seq = globalRoomState.timer.seq || 0;
             action.timeleft = timeleft;
         }
 
+        //add the game database into memory
         let key = game.game_slug + '/server.db.' + game.version + '.json';
         let db = await storage.getGameDatabase(key);
 
         globalDatabase = db;
         globalAction = [action];
 
+        //run the game server script
         let succeeded = this.runScript(game);
         if (!succeeded) {
             return false;
@@ -326,12 +330,20 @@ class GameRunner {
 
         console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
 
+
         if (globalResult) {
             //don't allow users to override the gamestatus
             if (globalResult.state) {
                 globalResult.state.gamestatus = globalRoomState.state.gamestatus;
             }
+
+            //tag the state with time it was processed
+            globalResult.timer.lastUpdate = globalResult.timer.end - action.timeleft
+
+            //merge result into room state
             globalResult = Object.assign({}, globalRoomState, globalResult);
+
+
         }
     }
 
@@ -359,10 +371,10 @@ class GameRunner {
     }
     onJoin(room_slug, action) {
 
-        if (!globalResult.events)
-            globalResult.events = {}
+        // if (!globalResult.events)
+        //     globalResult.events = {}
 
-        globalResult.events.join = { id: action.user.id }
+        // globalResult.events.join = { id: action.user.id }
 
         //start the game if its the first player to join room
         let players = globalResult?.players;
