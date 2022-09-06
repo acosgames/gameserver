@@ -9,6 +9,8 @@ const profiler = require('shared/util/profiler');
 const events = require('./events');
 const onJoin = require('../../websocket/src/onJoin');
 
+const DiscreteRandom = require('./DiscreteRandom');
+
 // const { version } = require("os");
 var globalDatabase = null;
 var globalRoomState = null;
@@ -31,6 +33,7 @@ var globals = {
             console.error(e);
         }
     },
+    random: () => { return DiscreteRandom.random(); },
     game: () => cloneObj(globalRoomState),
     actions: () => cloneObj(globalAction),
     killGame: () => {
@@ -185,7 +188,13 @@ class GameRunner {
         }
 
 
-
+        globalRoomState.room = {
+            room_slug: meta.room_slug,
+            sequence: globalRoomState?.room?.sequence || 0,
+            status: globalRoomState?.room?.status || 'pregame',
+            starttime: globalRoomState?.room?.starttime || Date.now(),
+            endtime: 0,
+        }
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
         // if (globalRoomState.leave)
@@ -201,22 +210,22 @@ class GameRunner {
                     break;
                 case 'pregame':
                     // globalRoomState = storage.makeGame(false, globalRoomState);
-                    if (globalRoomState.state)
-                        globalRoomState.state.gamestatus = 'pregame';
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = 'pregame';
                     break;
                 case 'starting':
-                    if (globalRoomState.state)
-                        globalRoomState.state.gamestatus = 'starting';
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = 'starting';
                     break;
                 case 'gamestart':
                     // globalRoomState = storage.makeGame(false, globalRoomState);
-                    if (globalRoomState.state)
-                        globalRoomState.state.gamestatus = 'gamestart';
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = 'gamestart';
                     break;
                 case 'gameover':
                     // globalRoomState = storage.makeGame(false, globalRoomState);
-                    if (globalRoomState.state)
-                        globalRoomState.state.gamestatus = 'gameover';
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = 'gameover';
                     break;
                 case 'join':
                     this.onPlayerJoin(action);
@@ -238,9 +247,9 @@ class GameRunner {
                     }
                     break;
                 default:
-                    if (action?.user?.id && globalRoomState?.timer?.seq != action.seq) {
+                    if (action?.user?.id && globalRoomState?.timer?.seq != action.timeseq) {
                         //user must use the same sequence as the script
-                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.seq);
+                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.timeseq);
                         return false;
                     }
                     break;
@@ -255,8 +264,11 @@ class GameRunner {
             delete globalSkipCount[room_slug];
         }
 
+        let seedStr = meta.room_slug + meta.starttime + meta.sequence;
+        DiscreteRandom.seed(seedStr)
 
-        await this.executeScript(game, action);
+
+        await this.executeScript(game, action, meta);
 
         let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
         console.log('isGameover: ', isGameover, globalResult.events);
@@ -277,13 +289,13 @@ class GameRunner {
             this.onReady(meta);
         }
         else {
-            if (!isGameover && globalResult.state.gamestatus == 'gamestart') {
+            if (!isGameover) {
                 // globalResult.timer.set = 100000;
                 gametimer.processTimelimit(globalResult.timer);
                 gametimer.addRoomDeadline(room_slug, globalResult.timer)
             }
             else {
-                globalRoomState.state.gamestatus = 'gameover';
+                globalResult.room.status = 'gameover';
             }
         }
 
@@ -302,18 +314,20 @@ class GameRunner {
         return { type: responseType, isGameover };
     }
 
-    async executeScript(game, action) {
+    async executeScript(game, action, meta) {
 
         //add timeleft to the action for games to use
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
-            action.seq = globalRoomState.timer.seq || 0;
+            action.timeseq = globalRoomState.timer.seq || 0;
             action.timeleft = timeleft;
         }
 
         //add the game database into memory
         let key = game.game_slug + '/server.db.' + game.version + '.json';
         let db = await storage.getGameDatabase(key);
+
+
 
         globalDatabase = db;
         globalAction = [action];
@@ -332,13 +346,22 @@ class GameRunner {
 
 
         if (globalResult) {
-            //don't allow users to override the gamestatus
-            if (globalResult.state) {
-                globalResult.state.gamestatus = globalRoomState.state.gamestatus;
+
+            globalResult.room = {
+                room_slug: meta.room_slug,
+                sequence: (globalRoomState?.room?.sequence || 0) + 1,
+                status: globalRoomState?.room?.status || 'pregame',
+                starttime: globalRoomState?.room?.starttime || Date.now(),
+                endtime: 0,
             }
 
+            // //don't allow users to override the room status
+            // if (globalResult.state) {
+            //     globalResult.room.status = globalRoomState.room.status;
+            // }
+
             //tag the state with time it was processed
-            globalResult.timer.lastUpdate = globalResult.timer.end - action.timeleft
+            // globalResult.timer.lastUpdate = globalResult.timer.end - action.timeleft
 
             //merge result into room state
             globalResult = Object.assign({}, globalRoomState, globalResult);
@@ -378,12 +401,12 @@ class GameRunner {
 
         //start the game if its the first player to join room
         let players = globalResult?.players;
-        let gamestatus = globalResult?.state?.gamestatus;
-        if (!gamestatus) {
+        let roomstatus = globalResult?.room?.status;
+        if (!roomstatus) {
             if (globalResult.state) {
                 let playerList = Object.keys(players);
                 if (playerList.length == 1) {
-                    globalResult.state.gamestatus = 'pregame';
+                    globalResult.room.status = 'pregame';
                     globalResult.timer = { set: 60 }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(room_slug, globalResult.timer)
@@ -405,7 +428,7 @@ class GameRunner {
             }
 
             if (playerCnt == readyCnt) {
-                globalResult.state.gamestatus = 'starting';
+                globalResult.room.status = 'starting';
 
 
 

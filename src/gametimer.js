@@ -30,7 +30,7 @@ class GameTimer {
     processTimelimit(timer) {
 
         if (!timer) {
-            timer = { seq: 1 }
+            timer = { seq: 0 }
         }
         if (!timer || !timer.set)
             return;
@@ -82,7 +82,7 @@ class GameTimer {
                 return false;
 
             let action = {};
-            if (!(roomState.state?.gamestatus)) {
+            if (!(roomState.room?.status)) {
                 console.log("timer ended: unkonwn");
                 action = {
                     type: 'noshow',
@@ -90,7 +90,7 @@ class GameTimer {
                 }
             }
             else {
-                switch (roomState.state?.gamestatus) {
+                switch (roomState.room?.status) {
                     case 'pregame':
                         console.log("timer ended: pregame");
                         action = {
