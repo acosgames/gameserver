@@ -194,6 +194,7 @@ class GameRunner {
             status: globalRoomState?.room?.status || 'pregame',
             starttime: globalRoomState?.room?.starttime || Date.now(),
             endtime: 0,
+            updated: Date.now()
         }
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
@@ -353,6 +354,7 @@ class GameRunner {
                 status: globalRoomState?.room?.status || 'pregame',
                 starttime: globalRoomState?.room?.starttime || Date.now(),
                 endtime: 0,
+                updated: Date.now()
             }
 
             // //don't allow users to override the room status
