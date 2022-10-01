@@ -100,7 +100,7 @@ class GameRunner {
 
     }
 
-    async runAction(incomingActions, game, meta) {
+    async runAction(incomingActions, gameScript, meta) {
         // profiler.StartTime("GameRunner.runAction");
         let passed = false;
         try {
@@ -131,7 +131,7 @@ class GameRunner {
                     return false;
                 }
 
-                passed = await this.runActionEx(action, game, meta);
+                passed = await this.runActionEx(action, gameScript, meta);
                 if (!passed) {
                     let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
                     rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
@@ -173,7 +173,7 @@ class GameRunner {
         return passed;
     }
 
-    async runActionEx(action, game, meta) {
+    async runActionEx(action, gameScript, meta) {
         console.log('runAction', action);
         let room_slug = meta.room_slug;
 
@@ -183,7 +183,7 @@ class GameRunner {
         if (!globalRoomState)
             return false;
 
-        if (globalRoomState?.events?.gameover) {
+        if (globalRoomState?.room?.status == 'gameover') {
             return false;
         }
 
@@ -248,9 +248,9 @@ class GameRunner {
                     }
                     break;
                 default:
-                    if (action?.user?.id && globalRoomState?.timer?.seq != action.timeseq) {
+                    if (action?.user?.id && globalRoomState?.timer?.sequence != action.timeseq) {
                         //user must use the same sequence as the script
-                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.seq, action.timeseq);
+                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.sequence, action.timeseq);
                         return false;
                     }
                     break;
@@ -269,7 +269,9 @@ class GameRunner {
         DiscreteRandom.seed(seedStr)
 
 
-        await this.executeScript(game, action, meta);
+        let success = await this.executeScript(gameScript, action, meta);
+        if (!success)
+            return false;
 
         let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
         console.log('isGameover: ', isGameover, globalResult.events);
@@ -315,26 +317,27 @@ class GameRunner {
         return { type: responseType, isGameover };
     }
 
-    async executeScript(game, action, meta) {
+    async executeScript(gameScript, action, meta) {
 
         //add timeleft to the action for games to use
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
-            action.timeseq = globalRoomState.timer.seq || 0;
+            action.timeseq = globalRoomState.timer.sequence || 0;
             action.timeleft = timeleft;
         }
 
         //add the game database into memory
-        let key = game.game_slug + '/server.db.' + game.version + '.json';
+        let key = meta.game_slug + '/server.db.' + meta.version + '.json';
         let db = await storage.getGameDatabase(key);
-
+        // console.log("database key", key, meta.game_slug);
+        // console.log("database", db);
 
 
         globalDatabase = db;
         globalAction = [action];
 
         //run the game server script
-        let succeeded = this.runScript(game);
+        let succeeded = this.runScript(gameScript);
         if (!succeeded) {
             return false;
         }
@@ -357,6 +360,13 @@ class GameRunner {
                 updated: Date.now()
             }
 
+
+
+            globalResult.action = action;
+
+
+
+
             // //don't allow users to override the room status
             // if (globalResult.state) {
             //     globalResult.room.status = globalRoomState.room.status;
@@ -370,6 +380,8 @@ class GameRunner {
 
 
         }
+
+        return true;
     }
 
     addEvent(type, payload) {
@@ -452,7 +464,7 @@ class GameRunner {
         console.log("GAMEOVER: ", meta, globalResult)
         if (room.getGameModeName(meta.mode) == 'rank' || meta.mode == 'rank') {
             let storedPlayerRatings = {};
-            if (globalResult?.timer?.seq > 2) {
+            if (globalResult?.timer?.sequence > 2) {
                 if (meta.maxplayers > 1) {
                     await rank.processPlayerRatings(meta, globalResult.players, storedPlayerRatings);
                     await room.updateLeaderboard(meta.game_slug, globalResult.players);

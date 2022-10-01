@@ -30,7 +30,7 @@ class GameTimer {
     processTimelimit(timer) {
 
         if (!timer) {
-            timer = { seq: 0 }
+            timer = { sequence: 0 }
         }
         if (!timer || !timer.set)
             return;
@@ -39,7 +39,7 @@ class GameTimer {
             return;
 
         let seconds = Math.min(3000000, Math.max(1, timer.set));
-        let sequence = timer.seq || 0;
+        let sequence = timer.sequence || 0;
         let now = (new Date()).getTime();
         let deadline = now + (seconds * 1000);
         // let timeleft = deadline - now;
@@ -47,7 +47,7 @@ class GameTimer {
         timer.end = deadline;
         timer.seconds = seconds;
         // timer.data = [deadline, seconds];
-        timer.seq = sequence + 1;
+        timer.sequence = sequence + 1;
         delete timer.set;
     }
 

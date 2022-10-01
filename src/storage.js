@@ -298,7 +298,7 @@ class Storage {
         roomState.next = {};
         // roomState.prev = {};
         roomState.events = {};
-        roomState.timer = { seq: 0 };
+        roomState.timer = { sequence: 0 };
 
         if (clearPlayers) {
             roomState.players = {}
