@@ -175,7 +175,7 @@ class Rank {
 
             //UPDATE PLAYER data sent back, using private fields to hide the win/loss/tie/played counts from others
             player.rating = rating.rating;
-            player.ratingTxt = game.ratingToRank(rating.rating);
+            // player.ratingTxt = game.ratingToRank(rating.rating);
             player._win = rating.win;
             player._loss = rating.loss;
             player._tie = rating.tie;
@@ -187,7 +187,7 @@ class Rank {
                 rank: player.rank,
                 score: player.score,
                 rating: player.rating,
-                ratingTxt: player.ratingTxt,
+                // ratingTxt: player.ratingTxt,
             })
 
             ratingsList.push({
