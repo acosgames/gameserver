@@ -124,6 +124,13 @@ class GameRunner {
             let previousRoomState = cloneObj(globalRoomState);
 
             for (let action of actions) {
+
+                if (action.type != 'join' && action.type != 'leave' && action.type != 'ready' && action?.user?.id && globalRoomState?.timer?.sequence != action.timeseq) {
+                    //user must use the same sequence as the script
+                    console.log("User out of sequence: ", action.user, globalRoomState?.timer?.sequence, action.timeseq);
+                    return true;
+                }
+
                 if (action.type == 'noshow') {
                     let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
                     rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
@@ -147,6 +154,7 @@ class GameRunner {
                     }
 
                     responseType = passed.type;
+                    globalRoomState = cloneObj(globalResult);
                 }
             }
 
@@ -158,7 +166,16 @@ class GameRunner {
             }
 
             await storage.saveRoomState(responseType, meta, globalResult);
+
+            previousRoomState.events = {};
+
             let deltaState = delta.delta(previousRoomState, globalResult, {});
+
+            if (actions.length == 1)
+                deltaState.action = actions[0];
+            else
+                deltaState.action = actions;
+
             rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: deltaState });
 
             storage.processActionRate();
@@ -362,7 +379,7 @@ class GameRunner {
 
 
 
-            globalResult.action = action;
+            // globalResult.action = action;
 
 
 
@@ -466,7 +483,7 @@ class GameRunner {
             let storedPlayerRatings = {};
             if (globalResult?.timer?.sequence > 2) {
                 if (meta.maxplayers > 1) {
-                    await rank.processPlayerRatings(meta, globalResult.players, storedPlayerRatings);
+                    await rank.processPlayerRatings(meta, globalResult.players, globalResult.teams, storedPlayerRatings);
                     await room.updateLeaderboard(meta.game_slug, globalResult.players);
                 }
             }
@@ -538,6 +555,7 @@ class GameRunner {
         let id = action.user.id;
         let name = action.user.displayname;
         let room_slug = action.room_slug;
+        let team_slug = action.user.team_slug;
 
         if (!id) {
             console.error("Invalid player: " + id);
@@ -551,16 +569,17 @@ class GameRunner {
             globalRoomState.players[id].name = name;
         }
 
-        if (action.user.team_slug) {
+        if (team_slug) {
 
-            if (!globalRoomState.teams) {
-                globalRoomState.teams = {};
-            }
-            if (!(action.user.team_slug in globalRoomState.teams)) {
-                globalRoomState.teams[action.user.team_slug] = { players: [] }
+            // if (!globalRoomState.teams) {
+            //     globalRoomState.teams = {};
+            // }
+            if (!(team_slug in globalRoomState.teams)) {
+                globalRoomState.teams[team_slug] = { players: [] }
             }
 
-            globalRoomState.teams[action.user.team_slug].players.push(action.user.id);
+            globalRoomState.teams[team_slug].players.push(action.user.id);
+            globalRoomState.players[id].teamid = team_slug;
         }
     }
 

@@ -130,13 +130,18 @@ class Storage {
     }
 
     async getRoomState(room_slug) {
+
+        let meta = await this.getRoomMeta(room_slug);
+        if (!meta)
+            return null;
+
         let game = await cache.get(room_slug);
         // let game = this.roomStates[room_slug];
         // if (!game) {
         //     game = await redis.get(room_slug);
         // }
         if (!game) {
-            game = this.makeGame(false, game);
+            game = this.makeGame(meta);
             await cache.set(room_slug, game);
         }
 
@@ -286,33 +291,38 @@ class Storage {
         // await redis.del(room_slug + '/timer');
     }
 
-    makeGame(clearPlayers, roomState) {
-        if (!roomState)
-            roomState = {};
+    makeGame(meta) {
+
+        let roomState = {};
+
         if (roomState.killGame) {
             delete roomState['killGame'];
         }
         roomState.room = {};
         roomState.state = {};
-        roomState.rules = {};
+        // roomState.rules = {};
         roomState.next = {};
         // roomState.prev = {};
         roomState.events = {};
         roomState.timer = { sequence: 0 };
 
-        if (clearPlayers) {
-            roomState.players = {}
-        }
-        else {
-            let newPlayers = {};
-            for (var id in roomState.players) {
-                let player = roomState.players[id];
-                newPlayers[id] = {
-                    name: player.name
+        roomState.players = {}
+
+        if (meta?.teams) {
+            roomState.teams = {};
+
+            for (const team of meta.teams) {
+                roomState.teams[team.team_slug] = {
+                    name: team.team_name,
+                    color: team.color,
+                    order: team.team_order,
+                    players: [],
+                    rank: 0,
+                    score: 0
                 }
             }
-            roomState.players = newPlayers;
         }
+
         return roomState;
     }
 }

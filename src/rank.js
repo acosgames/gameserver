@@ -72,7 +72,7 @@ class Rank {
 
     }
 
-    async processPlayerRatings(meta, players, storedPlayerRatings) {
+    async processPlayerRatings(meta, players, teams, storedPlayerRatings) {
 
         const game_slug = meta?.game_slug;
         const room_slug = meta?.room_slug;
@@ -107,6 +107,9 @@ class Rank {
             let playerRating = storedPlayerRatings[id];
 
             playerRating.rank = player.rank;
+            if (teams && player.teamid)
+                playerRating.rank = teams[player.teamid].rank;
+
             if ((typeof player.score !== 'undefined')) {
                 playerRating.score = player.score;
             }
@@ -156,7 +159,7 @@ class Rank {
 
         // console.log("Before Rating: ", playerRatings);
         //run OpenSkill rating system
-        this.calculateRanks(playerRatings);
+        this.calculateRanks(playerRatings, teams);
 
         //update player ratings from openskill mutation of playerRatings
         let ratingsList = [];
@@ -223,15 +226,70 @@ class Rank {
 
     calculateRanks(players, teams) {
 
-        if (teams) {
+        if (teams && teams.length > 0) {
             return this.calculateTeams(players, teams);
         }
 
         return this.calculateFFA(players);
     }
 
-    calculateTeams(players, teams) {
-        return true;
+    calculateTeams(players, gameteams) {
+        let rank = [];
+        let score = [];
+        let ratings = [];
+        let teams = [];
+
+        if (!players)
+            return false;
+
+        try {
+            let results = null;
+
+            //rate based on teams
+            for (var teamid of gameteams) {
+                let team = gameteams[teamid];
+                let playerids = team.players;
+                let teamplayers = [];
+                let teamratings = [];
+                for (var playerid of playerids) {
+                    let player = players[playerid];
+                    let playerRating = rating({ mu: player.mu, sigma: player.sigma });
+                    teamratings.push(playerRating);
+                    teamplayers.push(playerid);
+                }
+                ratings.push(teamratings);
+                teams.push(teamplayers);
+                rank.push(team.rank);
+                if (team?.score)
+                    score.push(team.score);
+            }
+
+            //calculate the results 
+            if (score.length != rank.length) {
+                results = rate(ratings, { rank });
+            } else {
+                results = rate(ratings, { rank, score });
+            }
+
+            //update player ratings for saving to storage
+            for (var i = 0; i < teams.length; i++) {
+                let team = teams[i];
+                for (var j = 0; j < team.length; j++) {
+                    let id = team[j];
+                    let player = players[id];
+                    let playerRating = results[i][j];
+                    player.mu = playerRating.mu;
+                    player.sigma = playerRating.sigma;
+                    player.rating = Math.round(playerRating.mu * 100.0);
+                }
+            }
+
+            return true;
+        }
+        catch (e) {
+            console.error(e);
+            return false;
+        }
     }
 
     calculateFFA(players) {
