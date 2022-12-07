@@ -467,7 +467,7 @@ class GameRunner {
                     events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
                 }
                 else {
-                    let startTime = 4;
+                    let startTime = 3;
                     globalResult.timer = { set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
