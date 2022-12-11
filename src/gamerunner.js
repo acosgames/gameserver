@@ -249,6 +249,11 @@ class GameRunner {
                     this.onPlayerJoin(action);
                     break;
                 case 'leave':
+                    let players = globalRoomState.players || {};
+                    let player = players[action.user.id]
+                    if (player) {
+                        player.ingame = false;
+                    }
                     room.removePlayerRoom(action.user.id, room_slug)
                     break;
                 // case 'reset':
@@ -422,6 +427,11 @@ class GameRunner {
 
     onLeave(action) {
         this.addEvent('leave', { id: action.user.id });
+        let players = globalResult?.players;
+        let player = players[action.user.id]
+        if (player) {
+            player.ingame = false;
+        }
     }
     onJoin(room_slug, action) {
 
