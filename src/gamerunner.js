@@ -287,7 +287,7 @@ class GameRunner {
             delete globalSkipCount[room_slug];
         }
 
-        let seedStr = meta.room_slug + meta.starttime + meta.sequence;
+        let seedStr = meta.room_slug + globalRoomState.room.starttime + globalRoomState.room.sequence;
         DiscreteRandom.seed(seedStr)
 
 
