@@ -169,6 +169,7 @@ class GameRunner {
 
             previousRoomState.events = {};
 
+            console.log("GLOBALRESULT = ", JSON.stringify(globalResult))
             let deltaState = delta.delta(previousRoomState, globalResult, {});
 
             if (actions.length == 1)
