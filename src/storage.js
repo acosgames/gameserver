@@ -140,10 +140,6 @@ class Storage {
         // if (!game) {
         //     game = await redis.get(room_slug);
         // }
-        if (!game) {
-            game = this.makeGame(meta);
-            await cache.set(room_slug, game);
-        }
 
 
         //this.roomStates[room_slug] = game;

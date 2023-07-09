@@ -118,10 +118,21 @@ class GameRunner {
 
 
             globalRoomState = await storage.getRoomState(meta.room_slug);
+            let previousRoomState = cloneObj(globalRoomState);
+
+            //create new game
+            if (!globalRoomState) {
+                previousRoomState = {};
+                globalRoomState = storage.makeGame(meta);
+                await storage.saveRoomState('newgame', meta, globalRoomState);
+
+            }
+
+
             if (globalRoomState.events)
                 globalRoomState.events = {};
 
-            let previousRoomState = cloneObj(globalRoomState);
+
 
             for (let action of actions) {
 
