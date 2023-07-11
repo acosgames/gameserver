@@ -17,7 +17,7 @@
     "redis-sorted-set": "^2.0.0",
     "seedrandom": "^3.0.5",
     "shared": "file:../shared",
-    "vm2": "^3.9.9",
+    "vm2": "^3.9.19",
     "websocket": "^1.0.33"
   },
   "author": "",
