@@ -7,7 +7,6 @@ const rank = require('./rank');
 const delta = require('shared/util/delta');
 const profiler = require('shared/util/profiler');
 const events = require('./events');
-const onJoin = require('../../websocket/src/onJoin');
 
 const DiscreteRandom = require('./DiscreteRandom');
 
@@ -396,10 +395,15 @@ class GameRunner {
                 updated: Date.now()
             }
 
-            globalResult.timer = globalResult.timer || {};
-            globalResult.timer.sequence = globalRoomState.sequence;
-            globalResult.timer.end = globalRoomState.end;
-            globalResult.timer.seconds = globalRoomState.seconds;
+            if (!('timer' in globalResult)) {
+                globalResult = globalRoomState.timer || {};
+            }
+            globalResult.timer.sequence = globalRoomState.timer.sequence;
+            globalResult.timer.end = globalRoomState.timer.end;
+            globalResult.timer.seconds = globalRoomState.timer.seconds;
+
+            //globalResult.timer = globalResult.timer || {};
+
 
 
 
