@@ -27,6 +27,7 @@ var globals = {
     error: (msg) => { console.error(msg) },
     finish: (newGame) => {
         try {
+            console.log("FINISHED: ", newGame);
             globalResult = cloneObj(newGame);
         }
         catch (e) {
@@ -585,10 +586,11 @@ class GameRunner {
         }
 
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, rank: 0, score: 0, rating: action.user.rating }
+            globalRoomState.players[id] = { name, id, rank: 0, score: 0, rating: action.user.rating }
         }
         else {
             globalRoomState.players[id].name = name;
+            globalRoomState.players[id].id = id;
         }
 
         if (team_slug) {
