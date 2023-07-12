@@ -226,6 +226,7 @@ class GameRunner {
             endtime: 0,
             updated: Date.now()
         }
+
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
         // if (globalRoomState.leave)
@@ -395,6 +396,11 @@ class GameRunner {
                 updated: Date.now()
             }
 
+            globalResult.timer = globalResult.timer || {};
+            globalResult.timer.sequence = globalRoomState.sequence;
+            globalResult.timer.end = globalRoomState.end;
+            globalResult.timer.seconds = globalRoomState.seconds;
+
 
 
             // globalResult.action = action;
@@ -461,7 +467,7 @@ class GameRunner {
                 let playerList = Object.keys(players);
                 if (playerList.length == 1) {
                     globalResult.room.status = 'pregame';
-                    globalResult.timer = { set: 60 }
+                    globalResult.timer = { ...globalResult.timer, set: 60 }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(room_slug, globalResult.timer)
                 }
@@ -491,7 +497,7 @@ class GameRunner {
                 }
                 else {
                     let startTime = 3;
-                    globalResult.timer = { set: startTime }
+                    globalResult.timer = { ...globalResult.timer, set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
                 }
