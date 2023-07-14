@@ -106,7 +106,7 @@ class GameQueue {
             return;
         }
 
-        // profiler.StartTime("GameQueue.tryRunGame");
+        profiler.StartTime("GameQueue.tryRunGame");
         this.gameBusy[gamekey] = true;
         try {
             let action = this.gameActions[gamekey].peek();
@@ -115,7 +115,7 @@ class GameQueue {
                 firstAction = action[0];
             }
 
-
+            profiler.StartTime("GameQueue.tryRunGame.roomMeta");
             let meta = await storage.getRoomMeta(firstAction.room_slug);
             if (!meta) {
                 let gamekey = meta.game_slug + meta.version;
@@ -125,7 +125,11 @@ class GameQueue {
                 this.tryRunGame(gamekey);
                 return;
             }
-            await gamedownloader.downloadServerFiles(firstAction, meta);
+            profiler.EndTime("GameQueue.tryRunGame.roomMeta");
+
+            profiler.StartTime("GameQueue.tryRunGame.serverFiles");
+            await gamedownloader.downloadServerFiles(firstAction, meta, gamerunner.getIsolate());
+            profiler.EndTime("GameQueue.tryRunGame.serverFiles");
 
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);
@@ -137,6 +141,7 @@ class GameQueue {
                 return;
             }
 
+            profiler.StartTime("GameQueue.tryRunGame.runAction");
             action = this.gameActions[gamekey].dequeue();
             let passed = await gamerunner.runAction(action, gameServer.script, meta);
             if (!passed) {
@@ -144,6 +149,7 @@ class GameQueue {
                 this.gameActions[gamekey].clear();
                 this.isProcessing = false;
             }
+            profiler.EndTime("GameQueue.tryRunGame.runAction");
         }
         catch (e) {
             console.error(e);
@@ -151,7 +157,7 @@ class GameQueue {
         this.gameBusy[gamekey] = false;
 
         this.tryRunGame(gamekey);
-        // profiler.EndTime("GameQueue.tryRunGame");
+        profiler.EndTime("GameQueue.tryRunGame");
         // profiler.EndTime('GameServer-loop');
     }
 

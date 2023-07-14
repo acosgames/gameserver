@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "axios": "^0.21.1",
+    "isolated-vm": "^4.5.0",
     "node-cache": "^5.1.2",
     "openskill": "^1.4.1",
     "priorityqueuejs": "^2.0.0",
@@ -17,7 +18,6 @@
     "redis-sorted-set": "^2.0.0",
     "seedrandom": "^3.0.5",
     "shared": "file:../shared",
-    "vm2": "^3.9.19",
     "websocket": "^1.0.33"
   },
   "author": "",

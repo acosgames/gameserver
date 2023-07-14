@@ -149,7 +149,7 @@ class GameReceiver {
     }
 
     async onLoadGame(msg) {
-      
+
         let initialActions = msg.actions;
 
         let room_slug = msg.room_slug;
@@ -170,7 +170,7 @@ class GameReceiver {
 
     async onNextAction(actions) {
         //profiler.StartTime('GameServer-loop');
-
+        console.log("ForwardActionReceived", Date.now())
         if (actions) {
             events.emitNextAction(actions);
         }

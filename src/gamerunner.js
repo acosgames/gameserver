@@ -1,4 +1,4 @@
-const { VM, VMScript, NodeVM } = require('vm2');
+// const { VM, VMScript, NodeVM } = require('vm2');
 const rabbitmq = require('shared/services/rabbitmq');
 const room = require('shared/services/room');
 const storage = require('./storage');
@@ -21,40 +21,100 @@ var globalIgnore = false;
 
 var globalSkipCount = {};
 
-var globals = {
-    log: (msg) => { console.log(msg) },
-    error: (msg) => { console.error(msg) },
-    finish: (newGame) => {
+
+const ivm = require('isolated-vm');
+const isolate = new ivm.Isolate({ memoryLimit: 128, inspector: true });
+// Create a new context within this isolate. Each context has its own copy of all the builtin
+// Objects. So for instance if one context does Object.prototype.foo = 1 this would not affect any
+// other contexts.
+const globals = {
+    log: new ivm.Callback((args) => {
+        // var args = Array.from(arguments);
+        // console.log.apply(console, args);
+        // console.log(args)
+    }),
+    error: new ivm.Callback((...args) => {
+        // console.error(...args);
+        // console.error(msg) 
+    }),
+    finish: new ivm.Callback((newGame) => {
         try {
-            console.log("FINISHED: ", newGame);
+            // console.log("FINISHED: ", newGame);
             globalResult = cloneObj(newGame);
         }
         catch (e) {
             console.error(e);
         }
-    },
-    random: () => { return DiscreteRandom.random(); },
-    game: () => cloneObj(globalRoomState),
-    actions: () => cloneObj(globalAction),
-    killGame: () => {
+    }),
+    random: new ivm.Callback(() => {
+        try {
+            return DiscreteRandom.random();
+        }
+        catch (e) {
+            console.error(e);
+        }
+    }),
+    game: new ivm.Callback(() => cloneObj(globalRoomState)),
+    actions: new ivm.Callback(() => {
+        return cloneObj(globalAction)
+    }),
+    killGame: new ivm.Callback(() => {
         globalDone = true;
-    },
-    database: () => {
+    }),
+    database: new ivm.Callback(() => {
         return globalDatabase?.db || null;
-    },
-    ignore: () => {
+    }),
+    ignore: new ivm.Callback(() => {
         globalIgnore = true;
-    }
+    })
 };
 
-const vm = new VM({
-    console: false,
-    wasm: false,
-    eval: false,
-    fixAsync: false,
-    timeout: 100,
-    sandbox: { globals },
-});
+const vmContext = isolate.createContextSync();
+vmContext.global.setSync('global', vmContext.global.derefInto());
+vmContext.global.setSync('log', globals.log);
+vmContext.global.setSync('error', globals.error);
+vmContext.global.setSync('finish', globals.finish);
+vmContext.global.setSync('random', globals.random);
+vmContext.global.setSync('game', globals.game);
+vmContext.global.setSync('actions', globals.actions);
+vmContext.global.setSync('killGame', globals.killGame);
+vmContext.global.setSync('database', globals.database);
+vmContext.global.setSync('ignore', globals.ignore);
+
+// var globals = {
+//     log: (msg) => { console.log(msg) },
+//     error: (msg) => { console.error(msg) },
+//     finish: (newGame) => {
+//         try {
+//             console.log("FINISHED: ", newGame);
+//             globalResult = cloneObj(newGame);
+//         }
+//         catch (e) {
+//             console.error(e);
+//         }
+//     },
+//     random: () => { return DiscreteRandom.random(); },
+//     game: () => cloneObj(globalRoomState),
+//     actions: () => cloneObj(globalAction),
+//     killGame: () => {
+//         globalDone = true;
+//     },
+//     database: () => {
+//         return globalDatabase?.db || null;
+//     },
+//     ignore: () => {
+//         globalIgnore = true;
+//     }
+// };
+
+// const vm = new VM({
+//     console: false,
+//     wasm: false,
+//     eval: false,
+//     fixAsync: false,
+//     timeout: 100,
+//     sandbox: { globals },
+// });
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -74,6 +134,10 @@ function cloneObj(obj) {
 
 
 class GameRunner {
+
+    getIsolate() {
+        return isolate;
+    }
 
     async killRoom(room_slug, meta) {
         try {
@@ -101,7 +165,7 @@ class GameRunner {
     }
 
     async runAction(incomingActions, gameScript, meta) {
-        // profiler.StartTime("GameRunner.runAction");
+        profiler.StartTime("GameRunner.runAction");
         let passed = false;
         try {
             let actions = null;
@@ -198,7 +262,7 @@ class GameRunner {
 
         // let aps = storage.calculateActionRate();
         // console.log("Actions Per Second = " + aps);
-        // profiler.EndTime("GameRunner.runAction");
+        profiler.EndTime("GameRunner.runAction");
         return passed;
     }
 
@@ -539,7 +603,8 @@ class GameRunner {
         try {
             profiler.StartTime('Game Logic');
             {
-                vm.run(script);
+                // vm.run(script);
+                script.runSync(vmContext, { timeout: 200 })
             }
             profiler.EndTime('Game Logic', 50);
             return true;
