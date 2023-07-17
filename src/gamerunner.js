@@ -23,7 +23,14 @@ var globalSkipCount = {};
 
 
 const ivm = require('isolated-vm');
-const isolate = new ivm.Isolate({ memoryLimit: 128, inspector: true });
+
+let isolateOptions = {};
+let NODE_ENV = process.env.NODE_ENV;
+if (NODE_ENV == 'localhost' || NODE_ENV == 'mobile')
+    isolateOptions = { memoryLimit: 128, inspector: true }
+else
+    isolateOptions = { memoryLimit: 1024, inspector: false }
+const isolate = new ivm.Isolate(isolateOptions);
 // Create a new context within this isolate. Each context has its own copy of all the builtin
 // Objects. So for instance if one context does Object.prototype.foo = 1 this would not affect any
 // other contexts.
