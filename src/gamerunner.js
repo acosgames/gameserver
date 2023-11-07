@@ -4,7 +4,7 @@ const room = require('shared/services/room');
 const storage = require('./storage');
 const gametimer = require('./gametimer');
 const rank = require('./rank');
-const delta = require('shared/util/delta');
+const delta = require('acos-json-delta');
 const profiler = require('shared/util/profiler');
 const events = require('./events');
 
