@@ -8,6 +8,8 @@ const delta = require('acos-json-delta');
 const profiler = require('shared/util/profiler');
 const events = require('./events');
 
+const { isObject } = require('shared/util/utils');
+
 const DiscreteRandom = require('./DiscreteRandom');
 
 // const { version } = require("os");
@@ -379,7 +381,7 @@ class GameRunner {
         if (!success)
             return false;
 
-        let isGameover = (delta.isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
+        let isGameover = (isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
         console.log('isGameover: ', isGameover, globalResult.events);
 
         let responseType = 'update';
