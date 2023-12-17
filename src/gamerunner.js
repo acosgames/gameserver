@@ -573,7 +573,7 @@ class GameRunner {
                     events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
                 }
                 else {
-                    let startTime = 3;
+                    let startTime = 3000;
                     globalResult.timer = { ...globalResult.timer, set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
@@ -670,7 +670,7 @@ class GameRunner {
         }
 
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, id, rank: 0, score: 0, rating: action.user.rating }
+            globalRoomState.players[id] = { name, id, rank: 0, score: 0, rating: action.user.rating, portraitid: action.user.portraitid, countrycode: action.user.countrycode }
         }
         else {
             globalRoomState.players[id].name = name;

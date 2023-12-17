@@ -88,18 +88,20 @@ class GameReceiver {
                 //return;
             }
 
+            setTimeout(async () => {
 
-            this.qServer = await rabbitmq.subscribeAutoDelete('serverWatch', 'healthRequest', this.onHealthCheck.bind(this));
-            let qDecomission = await rabbitmq.subscribeAutoDelete('decomission', this.qServer, this.onDecomission.bind(this));
+                this.qServer = await rabbitmq.subscribeAutoDelete('serverWatch', 'healthRequest', this.onHealthCheck.bind(this));
+                let qDecomission = await rabbitmq.subscribeAutoDelete('decomission', this.qServer, this.onDecomission.bind(this));
 
-            let qAction = await rabbitmq.findExistingQueue('action');
-            storage.setQueueKey(qAction);
-            rabbitmq.subscribeQueue(qAction, this.onNextAction.bind(this));
+                let qAction = await rabbitmq.findExistingQueue('action');
+                storage.setQueueKey(qAction);
+                rabbitmq.subscribeQueue(qAction, this.onNextAction.bind(this));
 
-            rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
-            events.addSkipListener(this.onSkip.bind(this));
-            events.addGameStartListener(this.onGameStart.bind(this));
-            rs(true);
+                rabbitmq.subscribeQueue('loadGame', this.onLoadGame.bind(this));
+                events.addSkipListener(this.onSkip.bind(this));
+                events.addGameStartListener(this.onGameStart.bind(this));
+                rs(true);
+            }, 5000)
         })
 
     }
