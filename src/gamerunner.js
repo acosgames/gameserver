@@ -256,10 +256,10 @@ class GameRunner {
             console.log("GLOBALRESULT = ", JSON.stringify(globalResult))
             let deltaState = delta.delta(previousRoomState, globalResult, {});
 
-            if (actions.length == 1)
-                deltaState.action = actions[0];
-            else
-                deltaState.action = actions;
+            // if (actions.length == 1)
+            //     deltaState.action = actions[0];
+            // else
+            //     deltaState.action = actions;
 
             rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: deltaState });
 
@@ -573,7 +573,7 @@ class GameRunner {
                     events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
                 }
                 else {
-                    let startTime = 3000;
+                    let startTime = 5000;
                     globalResult.timer = { ...globalResult.timer, set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
