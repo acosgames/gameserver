@@ -162,6 +162,35 @@ class Storage {
         cache.set(room_slug, roomState, 6000);
     }
 
+
+    async cleanupRoom(room_slug) {
+
+        try {
+            let roomState = await this.getRoomState(room_slug);
+            let players = roomState?.players;
+            if (players) {
+
+                for (var id in players) {
+                    cache.del(`rooms/${id}`);
+                }
+
+            }
+
+            Promise.all([
+                cache.del(room_slug),
+                cache.del(room_slug + '/meta'),
+                cache.del(room_slug + '/timer'),
+                cache.del(room_slug + '/p')
+            ]);
+
+            room.deleteRoom(room_slug);
+        }
+        catch (e) {
+            console.error(e);
+        }
+
+    }
+
     async getTimerData(room_slug) {
         let timerData = await cache.get(room_slug + '/timer');
         return timerData;

@@ -37,14 +37,42 @@ const isolate = new ivm.Isolate(isolateOptions);
 // Objects. So for instance if one context does Object.prototype.foo = 1 this would not affect any
 // other contexts.
 const globals = {
+    // globals: new ivm.Reference({
+    //     log: (msg) => { console.log(msg) },
+    //     error: (msg) => { console.error(msg) },
+    //     finish: (newGame) => {
+    //         try {
+    //             console.log("FINISHED: ", newGame);
+    //             globalResult = cloneObj(newGame);
+    //         }
+    //         catch (e) {
+    //             console.error(e);
+    //         }
+    //     },
+    //     random: () => { return DiscreteRandom.random(); },
+    //     game: () => cloneObj(globalRoomState),
+    //     actions: () => cloneObj(globalAction),
+    //     killGame: () => {
+    //         globalDone = true;
+    //     },
+    //     database: () => {
+    //         return globalDatabase?.db || null;
+    //     },
+    //     ignore: () => {
+    //         globalIgnore = true;
+    //     }
+
+    // }),
     log: new ivm.Callback((args) => {
         // var args = Array.from(arguments);
         // console.log.apply(console, args);
         // console.log(args)
+        return () => { }
     }),
     error: new ivm.Callback((...args) => {
         // console.error(...args);
         // console.error(msg) 
+        return () => { }
     }),
     finish: new ivm.Callback((newGame) => {
         try {
@@ -80,6 +108,7 @@ const globals = {
 
 const vmContext = isolate.createContextSync();
 vmContext.global.setSync('global', vmContext.global.derefInto());
+vmContext.global.setSync('globals', new ivm.Reference(globals));
 vmContext.global.setSync('log', globals.log);
 vmContext.global.setSync('error', globals.error);
 vmContext.global.setSync('finish', globals.finish);
@@ -131,7 +160,7 @@ function sleep(ms) {
 function cloneObj(obj) {
     //if (typeof obj === 'object')
     try {
-        return JSON.parse(JSON.stringify(obj));
+        return structuredClone(obj);// JSON.parse(JSON.stringify(obj));
     }
     catch (e) {
         return null;
@@ -153,6 +182,7 @@ class GameRunner {
             storage.removeTimer(room_slug);
             let key = meta.game_slug + '/' + room_slug;
 
+            storage.cleanupRoom(room_slug);
             // let roomState = await storage.getRoomState(room_slug);
             // let players = roomState?.players;
             // if( players ) {
@@ -224,7 +254,13 @@ class GameRunner {
 
                 passed = await this.runActionEx(action, gameScript, meta);
                 if (!passed) {
-                    let outMessage = { type: 'error', room_slug: action.room_slug, payload: { events: { error: "Game crashed. Please report." } } };
+                    let players = {};
+                    if (action.type == 'join') {
+                        actions.map(a => {
+                            players[a.user.id] = { ...a.user, shortid: a.user.id }
+                        });
+                    }
+                    let outMessage = { type: 'error', room_slug: action.room_slug, action, payload: { events: { error: "Game crashed. Please report." }, players } };
                     rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
                     this.killRoom(meta.room_slug, meta);
                     return false;
@@ -573,7 +609,7 @@ class GameRunner {
                     events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
                 }
                 else {
-                    let startTime = 5;
+                    let startTime = 5000;
                     globalResult.timer = { ...globalResult.timer, set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
