@@ -254,8 +254,9 @@ class GameRunner {
 
                 passed = await this.runActionEx(action, gameScript, meta);
                 if (!passed) {
-                    let players = {};
+                    let players;
                     if (action.type == 'join') {
+                        players = {}
                         actions.map(a => {
                             players[a.user.id] = { ...a.user, shortid: a.user.id }
                         });
@@ -374,7 +375,7 @@ class GameRunner {
                     let players = globalRoomState.players || {};
                     let player = players[action.user.id]
                     if (player) {
-                        player.ingame = false;
+                        player.forfeit = true;
                     }
                     room.removePlayerRoom(action.user.id, room_slug)
                     break;
@@ -562,7 +563,7 @@ class GameRunner {
         let players = globalResult?.players;
         let player = players[action.user.id]
         if (player) {
-            player.ingame = false;
+            player.forfeit = true;
         }
     }
     onJoin(room_slug, action) {
