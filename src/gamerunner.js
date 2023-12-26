@@ -266,9 +266,19 @@ class GameRunner {
                     this.killRoom(meta.room_slug, meta);
                     return false;
                 } else {
-                    if (passed.isGameover || passed.type == 'error') {
+                    if (passed.type == 'noshow') {
+                        let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
+                        rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                        this.killRoom(meta.room_slug, meta);
+                        return false;
+                    }
+                    else if (passed.isGameover || passed.type == 'error') {
                         await storage.saveRoomState(responseType, meta, globalResult);
                         let deltaState = delta.delta(previousRoomState, globalResult, {});
+
+                        if (passed.isGameover) {
+                            rabbitmq.publish('ws', 'onRoomGameover', { type: passed.type, room_slug: action.room_slug, payload: globalResult });
+                        }
                         rabbitmq.publish('ws', 'onRoomUpdate', { type: passed.type, room_slug: action.room_slug, payload: deltaState });
                         this.killRoom(meta.room_slug, meta);
                         return false;
@@ -326,6 +336,7 @@ class GameRunner {
             return false;
         }
 
+        let prevStatus = globalRoomState?.room?.status || 'pregame'
 
         globalRoomState.room = {
             room_slug: meta.room_slug,
@@ -450,7 +461,10 @@ class GameRunner {
 
         if (isGameover) {
             responseType = 'gameover';
-            await this.onGameover(meta);
+            if (prevStatus == 'pregame' || prevStatus == 'starting') {
+                responseType = 'noshow';
+            } else
+                await this.onGameover(meta);
         }
 
 
@@ -610,7 +624,7 @@ class GameRunner {
                     events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
                 }
                 else {
-                    let startTime = 5000;
+                    let startTime = 5;
                     globalResult.timer = { ...globalResult.timer, set: startTime }
                     gametimer.processTimelimit(globalResult.timer);
                     gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
@@ -620,7 +634,8 @@ class GameRunner {
     }
 
     async onGameover(meta) {
-
+        //moving to postGameManager.js
+        return;
         console.log("GAMEOVER: ", meta, globalResult)
         if (room.getGameModeName(meta.mode) == 'rank' || meta.mode == 'rank') {
             let storedPlayerRatings = {};
