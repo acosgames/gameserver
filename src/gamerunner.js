@@ -182,7 +182,7 @@ class GameRunner {
             storage.removeTimer(room_slug);
             let key = meta.game_slug + '/' + room_slug;
 
-            storage.cleanupRoom(room_slug);
+            storage.cleanupRoom(meta);
             // let roomState = await storage.getRoomState(room_slug);
             // let players = roomState?.players;
             // if( players ) {
@@ -277,7 +277,7 @@ class GameRunner {
                         let deltaState = delta.delta(previousRoomState, globalResult, {});
 
                         if (passed.isGameover) {
-                            rabbitmq.publish('ws', 'onRoomGameover', { type: passed.type, room_slug: action.room_slug, payload: globalResult });
+                            rabbitmq.publish('ws', 'onRoomGameover', { type: passed.type, room_slug: action.room_slug, meta, payload: globalResult });
                         }
                         rabbitmq.publish('ws', 'onRoomUpdate', { type: passed.type, room_slug: action.room_slug, payload: deltaState });
                         this.killRoom(meta.room_slug, meta);

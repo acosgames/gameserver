@@ -163,10 +163,10 @@ class Storage {
     }
 
 
-    async cleanupRoom(room_slug) {
+    async cleanupRoom(meta) {
 
         try {
-            let roomState = await this.getRoomState(room_slug);
+            let roomState = await this.getRoomState(meta.room_slug);
             let players = roomState?.players;
             if (players) {
 
@@ -177,19 +177,20 @@ class Storage {
             }
 
             Promise.all([
-                cache.del(room_slug),
-                cache.del(room_slug + '/meta'),
-                cache.del(room_slug + '/timer'),
-                cache.del(room_slug + '/p')
+                cache.del(meta.room_slug),
+                cache.del(meta.room_slug + '/meta'),
+                cache.del(meta.room_slug + '/timer'),
+                cache.del(meta.room_slug + '/p')
             ]);
 
-            room.deleteRoom(room_slug);
+            room.deleteRoom(meta.room_id);
         }
         catch (e) {
             console.error(e);
         }
 
     }
+
 
     async getTimerData(room_slug) {
         let timerData = await cache.get(room_slug + '/timer');

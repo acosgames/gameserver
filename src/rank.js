@@ -5,6 +5,7 @@ const GameService = require('shared/services/game');
 const game = new GameService();
 
 const { setPlayerRating } = require('shared/services/room');
+const { muRating } = require('shared/util/ratingconfig');
 
 class Rank {
     constructor() { }
@@ -280,7 +281,9 @@ class Rank {
                     let playerRating = results[i][j];
                     player.mu = playerRating.mu;
                     player.sigma = playerRating.sigma;
-                    player.rating = Math.round(playerRating.mu * 100.0);
+
+
+                    player.rating = muRating(playerRating.mu);
                 }
             }
 
@@ -331,7 +334,7 @@ class Rank {
                     let playerRating = results[i][j];
                     player.mu = playerRating.mu;
                     player.sigma = playerRating.sigma;
-                    player.rating = Math.round(playerRating.mu * 100.0);
+                    player.rating = muRating(playerRating.mu);
                 }
             }
 
