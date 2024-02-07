@@ -63,17 +63,18 @@ const globals = {
     //     }
 
     // }),
-    log: new ivm.Callback((args) => {
+    log: function () {
         // var args = Array.from(arguments);
         // console.log.apply(console, args);
-        // console.log(args)
-        return () => { }
-    }),
-    error: new ivm.Callback((...args) => {
+        // console.log('GAMERUNNER LOG: ', ...args)
+        // return () => { }
+    },
+    error: function () {
+        // var args = Array.from(arguments);
         // console.error(...args);
-        // console.error(msg) 
-        return () => { }
-    }),
+        // console.error(...args)
+        // return () => { }
+    },
     finish: new ivm.Callback((newGame) => {
         try {
             // console.log("FINISHED: ", newGame);
@@ -91,9 +92,11 @@ const globals = {
             console.error(e);
         }
     }),
-    game: new ivm.Callback(() => cloneObj(globalRoomState)),
+    game: new ivm.Callback(() => {
+        return globalRoomState;
+    }),
     actions: new ivm.Callback(() => {
-        return cloneObj(globalAction)
+        return globalAction;
     }),
     killGame: new ivm.Callback(() => {
         globalDone = true;
@@ -108,13 +111,13 @@ const globals = {
 
 const vmContext = isolate.createContextSync();
 vmContext.global.setSync('global', vmContext.global.derefInto());
-vmContext.global.setSync('globals', new ivm.Reference(globals));
+// vmContext.global.setSync('globals', new ivm.Reference(globals));
 vmContext.global.setSync('log', globals.log);
 vmContext.global.setSync('error', globals.error);
 vmContext.global.setSync('finish', globals.finish);
 vmContext.global.setSync('random', globals.random);
 vmContext.global.setSync('game', globals.game);
-vmContext.global.setSync('actions', globals.actions);
+vmContext.global.setSync('actions', globals.actions, { copy: true });
 vmContext.global.setSync('killGame', globals.killGame);
 vmContext.global.setSync('database', globals.database);
 vmContext.global.setSync('ignore', globals.ignore);
