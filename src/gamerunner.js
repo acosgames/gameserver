@@ -1,16 +1,16 @@
 // const { VM, VMScript, NodeVM } = require('vm2');
-const rabbitmq = require('shared/services/rabbitmq');
-const room = require('shared/services/room');
-const storage = require('./storage');
-const gametimer = require('./gametimer');
-const rank = require('./rank');
-const delta = require('acos-json-delta');
-const profiler = require('shared/util/profiler');
-const events = require('./events');
+const rabbitmq = require("shared/services/rabbitmq");
+const room = require("shared/services/room");
+const storage = require("./storage");
+const gametimer = require("./gametimer");
+const rank = require("./rank");
+const delta = require("acos-json-delta");
+const profiler = require("shared/util/profiler");
+const events = require("./events");
 
-const { isObject } = require('shared/util/utils');
+const { isObject } = require("shared/util/utils");
 
-const DiscreteRandom = require('./DiscreteRandom');
+const DiscreteRandom = require("./DiscreteRandom");
 
 // const { version } = require("os");
 var globalDatabase = null;
@@ -23,15 +23,13 @@ var globalIgnore = false;
 
 var globalSkipCount = {};
 
-
-const ivm = require('isolated-vm');
+const ivm = require("isolated-vm");
 
 let isolateOptions = {};
 let NODE_ENV = process.env.NODE_ENV;
-if (NODE_ENV == 'localhost' || NODE_ENV == 'mobile')
-    isolateOptions = { memoryLimit: 128, inspector: true }
-else
-    isolateOptions = { memoryLimit: 1024, inspector: false }
+if (NODE_ENV == "localhost" || NODE_ENV == "mobile")
+    isolateOptions = { memoryLimit: 128, inspector: true };
+else isolateOptions = { memoryLimit: 1024, inspector: false };
 const isolate = new ivm.Isolate(isolateOptions);
 // Create a new context within this isolate. Each context has its own copy of all the builtin
 // Objects. So for instance if one context does Object.prototype.foo = 1 this would not affect any
@@ -63,32 +61,30 @@ const globals = {
     //     }
 
     // }),
-    log: function () {
+    gamelog: function () {
         // var args = Array.from(arguments);
         // console.log.apply(console, args);
         // console.log('GAMERUNNER LOG: ', ...args)
         // return () => { }
     },
-    error: function () {
+    gameerror: function () {
         // var args = Array.from(arguments);
         // console.error(...args);
         // console.error(...args)
         // return () => { }
     },
-    finish: new ivm.Callback((newGame) => {
+    save: new ivm.Callback((newGame) => {
         try {
             // console.log("FINISHED: ", newGame);
             globalResult = cloneObj(newGame);
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
     }),
     random: new ivm.Callback(() => {
         try {
             return DiscreteRandom.random();
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
     }),
@@ -106,21 +102,8 @@ const globals = {
     }),
     ignore: new ivm.Callback(() => {
         globalIgnore = true;
-    })
+    }),
 };
-
-const vmContext = isolate.createContextSync();
-vmContext.global.setSync('global', vmContext.global.derefInto());
-// vmContext.global.setSync('globals', new ivm.Reference(globals));
-vmContext.global.setSync('log', globals.log);
-vmContext.global.setSync('error', globals.error);
-vmContext.global.setSync('finish', globals.finish);
-vmContext.global.setSync('random', globals.random);
-vmContext.global.setSync('game', globals.game);
-vmContext.global.setSync('actions', globals.actions, { copy: true });
-vmContext.global.setSync('killGame', globals.killGame);
-vmContext.global.setSync('database', globals.database);
-vmContext.global.setSync('ignore', globals.ignore);
 
 // var globals = {
 //     log: (msg) => { console.log(msg) },
@@ -158,24 +141,20 @@ vmContext.global.setSync('ignore', globals.ignore);
 // });
 
 function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function cloneObj(obj) {
     //if (typeof obj === 'object')
     try {
-        return structuredClone(obj);// JSON.parse(JSON.stringify(obj));
-    }
-    catch (e) {
+        return structuredClone(obj); // JSON.parse(JSON.stringify(obj));
+    } catch (e) {
         return null;
     }
 
     //return obj;
 }
 
-
-
 class GameRunner {
-
     getIsolate() {
         return isolate;
     }
@@ -183,7 +162,7 @@ class GameRunner {
     async killRoom(room_slug, meta) {
         try {
             storage.removeTimer(room_slug);
-            let key = meta.game_slug + '/' + room_slug;
+            let key = meta.game_slug + "/" + room_slug;
 
             storage.cleanupRoom(meta);
             // let roomState = await storage.getRoomState(room_slug);
@@ -198,12 +177,8 @@ class GameRunner {
                 storage.addError(meta.game_slug, meta.version, error);
             }
 
-            rabbitmq.unsubscribe('game', key, storage.getQueueKey());
-        }
-        catch (e) {
-
-        }
-
+            rabbitmq.unsubscribe("game", key, storage.getQueueKey());
+        } catch (e) {}
     }
 
     async runAction(incomingActions, gameScript, meta) {
@@ -219,9 +194,8 @@ class GameRunner {
 
             let isGameover = false;
             let finalDelta = null;
-            let responseType = 'join';
+            let responseType = "join";
             let joinIds = [];
-
 
             globalRoomState = await storage.getRoomState(meta.room_slug);
             let previousRoomState = cloneObj(globalRoomState);
@@ -230,27 +204,36 @@ class GameRunner {
             if (!globalRoomState) {
                 previousRoomState = {};
                 globalRoomState = storage.makeGame(meta);
-                await storage.saveRoomState('newgame', meta, globalRoomState);
-
+                await storage.saveRoomState("newgame", meta, globalRoomState);
             }
 
-
-            if (globalRoomState.events)
-                globalRoomState.events = {};
-
-
+            if (globalRoomState.events) globalRoomState.events = {};
 
             for (let action of actions) {
-
-                if (action.type != 'join' && action.type != 'leave' && action.type != 'ready' && action?.user?.id && globalRoomState?.timer?.sequence != action.timeseq) {
+                if (
+                    action.type != "join" &&
+                    action.type != "leave" &&
+                    action.type != "ready" &&
+                    action?.user?.id &&
+                    globalRoomState?.timer?.sequence != action.timeseq
+                ) {
                     //user must use the same sequence as the script
-                    console.log("User out of sequence: ", action.user, globalRoomState?.timer?.sequence, action.timeseq);
+                    console.log(
+                        "User out of sequence: ",
+                        action.user,
+                        globalRoomState?.timer?.sequence,
+                        action.timeseq
+                    );
                     return true;
                 }
 
-                if (action.type == 'noshow') {
-                    let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
-                    rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                if (action.type == "noshow") {
+                    let outMessage = {
+                        type: "noshow",
+                        room_slug: action.room_slug,
+                        payload: { events: { noshow: true } },
+                    };
+                    rabbitmq.publish("ws", "onRoomUpdate", outMessage);
                     this.killRoom(meta.room_slug, meta);
                     return false;
                 }
@@ -258,31 +241,62 @@ class GameRunner {
                 passed = await this.runActionEx(action, gameScript, meta);
                 if (!passed) {
                     let players;
-                    if (action.type == 'join') {
-                        players = {}
-                        actions.map(a => {
-                            players[a.user.id] = { ...a.user, shortid: a.user.id }
+                    if (action.type == "join") {
+                        players = {};
+                        actions.map((a) => {
+                            players[a.user.id] = {
+                                ...a.user,
+                                shortid: a.user.id,
+                            };
                         });
                     }
-                    let outMessage = { type: 'error', room_slug: action.room_slug, action, payload: { events: { error: "Game crashed. Please report." }, players } };
-                    rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                    let outMessage = {
+                        type: "error",
+                        room_slug: action.room_slug,
+                        action,
+                        payload: {
+                            events: { error: "Game crashed. Please report." },
+                            players,
+                        },
+                    };
+                    rabbitmq.publish("ws", "onRoomUpdate", outMessage);
                     this.killRoom(meta.room_slug, meta);
                     return false;
                 } else {
-                    if (passed.type == 'noshow') {
-                        let outMessage = { type: 'noshow', room_slug: action.room_slug, payload: { events: { noshow: true } } };
-                        rabbitmq.publish('ws', 'onRoomUpdate', outMessage);
+                    if (passed.type == "noshow") {
+                        let outMessage = {
+                            type: "noshow",
+                            room_slug: action.room_slug,
+                            payload: { events: { noshow: true } },
+                        };
+                        rabbitmq.publish("ws", "onRoomUpdate", outMessage);
                         this.killRoom(meta.room_slug, meta);
                         return false;
-                    }
-                    else if (passed.isGameover || passed.type == 'error') {
-                        await storage.saveRoomState(responseType, meta, globalResult);
-                        let deltaState = delta.delta(previousRoomState, globalResult, {});
+                    } else if (passed.isGameover || passed.type == "error") {
+                        await storage.saveRoomState(
+                            responseType,
+                            meta,
+                            globalResult
+                        );
+                        let deltaState = delta.delta(
+                            previousRoomState,
+                            globalResult,
+                            {}
+                        );
 
                         if (passed.isGameover) {
-                            rabbitmq.publish('ws', 'onRoomGameover', { type: passed.type, room_slug: action.room_slug, meta, payload: globalResult });
+                            rabbitmq.publish("ws", "onRoomGameover", {
+                                type: passed.type,
+                                room_slug: action.room_slug,
+                                meta,
+                                payload: globalResult,
+                            });
                         }
-                        rabbitmq.publish('ws', 'onRoomUpdate', { type: passed.type, room_slug: action.room_slug, payload: deltaState });
+                        rabbitmq.publish("ws", "onRoomUpdate", {
+                            type: passed.type,
+                            room_slug: action.room_slug,
+                            payload: deltaState,
+                        });
                         this.killRoom(meta.room_slug, meta);
                         return false;
                     }
@@ -292,9 +306,9 @@ class GameRunner {
                 }
             }
 
-            if (responseType == 'join' && globalRoomState.players) {
+            if (responseType == "join" && globalRoomState.players) {
                 for (const shortid in globalRoomState.players) {
-                    joinIds.push(shortid)
+                    joinIds.push(shortid);
                 }
                 globalResult.events.join = joinIds;
             }
@@ -303,7 +317,7 @@ class GameRunner {
 
             previousRoomState.events = {};
 
-            console.log("GLOBALRESULT = ", JSON.stringify(globalResult))
+            console.log("GLOBALRESULT = ", JSON.stringify(globalResult));
             let deltaState = delta.delta(previousRoomState, globalResult, {});
 
             // if (actions.length == 1)
@@ -311,11 +325,14 @@ class GameRunner {
             // else
             //     deltaState.action = actions;
 
-            rabbitmq.publish('ws', 'onRoomUpdate', { type: responseType, room_slug: meta.room_slug, payload: deltaState });
+            rabbitmq.publish("ws", "onRoomUpdate", {
+                type: responseType,
+                room_slug: meta.room_slug,
+                payload: deltaState,
+            });
 
             storage.processActionRate();
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
 
@@ -326,79 +343,74 @@ class GameRunner {
     }
 
     async runActionEx(action, gameScript, meta) {
-        console.log('runAction', action);
+        console.log("runAction", action);
         let room_slug = meta.room_slug;
 
         globalIgnore = false;
 
+        if (!globalRoomState) return false;
 
-        if (!globalRoomState)
-            return false;
-
-        if (globalRoomState?.room?.status == 'gameover') {
+        if (globalRoomState?.room?.status == "gameover") {
             return false;
         }
 
-        let prevStatus = globalRoomState?.room?.status || 'pregame'
+        let prevStatus = globalRoomState?.room?.status || "pregame";
 
         globalRoomState.room = {
             room_slug: meta.room_slug,
             sequence: globalRoomState?.room?.sequence || 0,
-            status: globalRoomState?.room?.status || 'pregame',
+            status: globalRoomState?.room?.status || "pregame",
             starttime: globalRoomState?.room?.starttime || Date.now(),
             endtime: 0,
-            updated: Date.now()
-        }
+            updated: Date.now(),
+        };
 
         // if (globalRoomState.join)
         //     delete globalRoomState['join'];
         // if (globalRoomState.leave)
         //     delete globalRoomState['leave'];
 
-
-
-
         try {
             switch (action.type) {
-                case 'ready':
+                case "ready":
                     this.onPlayerReady(action);
                     break;
-                case 'pregame':
+                case "pregame":
                     // globalRoomState = storage.makeGame(false, globalRoomState);
                     // if (globalRoomState.state)
-                    globalRoomState.room.status = 'pregame';
+                    globalRoomState.room.status = "pregame";
                     break;
-                case 'starting':
+                case "starting":
                     // if (globalRoomState.state)
-                    globalRoomState.room.status = 'starting';
+                    globalRoomState.room.status = "starting";
                     break;
-                case 'gamestart':
+                case "gamestart":
                     // globalRoomState = storage.makeGame(false, globalRoomState);
                     // if (globalRoomState.state)
-                    globalRoomState.room.status = 'gamestart';
+                    globalRoomState.room.status = "gamestart";
                     break;
-                case 'gameover':
+                case "gameover":
                     // globalRoomState = storage.makeGame(false, globalRoomState);
                     // if (globalRoomState.state)
-                    globalRoomState.room.status = 'gameover';
+                    globalRoomState.room.status = "gameover";
                     break;
-                case 'join':
+                case "join":
                     this.onPlayerJoin(action);
                     break;
-                case 'leave':
+                case "leave":
                     let players = globalRoomState.players || {};
-                    let player = players[action.user.id]
+                    let player = players[action.user.id];
                     if (player) {
                         player.forfeit = true;
                     }
-                    room.removePlayerRoom(action.user.id, room_slug)
+                    room.removePlayerRoom(action.user.id, room_slug);
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
                 //     break;
-                case 'skip':
+                case "skip":
                     if (!(room_slug in globalSkipCount))
-                        globalSkipCount[room_slug] = 0
+                        globalSkipCount[room_slug] = 0;
                     globalSkipCount[room_slug]++;
 
                     if (globalSkipCount[room_slug] > 5) {
@@ -407,72 +419,71 @@ class GameRunner {
                     }
                     break;
                 default:
-                    if (action?.user?.id && globalRoomState?.timer?.sequence != action.timeseq) {
+                    if (
+                        action?.user?.id &&
+                        globalRoomState?.timer?.sequence != action.timeseq
+                    ) {
                         //user must use the same sequence as the script
-                        console.log("User out of sequence: ", action.user, globalRoomState?.timer?.sequence, action.timeseq);
+                        console.log(
+                            "User out of sequence: ",
+                            action.user,
+                            globalRoomState?.timer?.sequence,
+                            action.timeseq
+                        );
                         return false;
                     }
                     break;
             }
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
             return false;
         }
 
-        if (action.type != 'skip') {
+        if (action.type != "skip") {
             delete globalSkipCount[room_slug];
         }
 
-        let seedStr = meta.room_slug + globalRoomState.room.starttime + globalRoomState.room.sequence;
-        DiscreteRandom.seed(seedStr)
-
+        let seedStr =
+            meta.room_slug +
+            globalRoomState.room.starttime +
+            globalRoomState.room.sequence;
+        DiscreteRandom.seed(seedStr);
 
         let success = await this.executeScript(gameScript, action, meta);
-        if (!success)
-            return false;
+        if (!success) return false;
 
-        let isGameover = (isObject(globalResult) && ('events' in globalResult) && ('gameover' in globalResult.events));
-        console.log('isGameover: ', isGameover, globalResult.events);
+        let isGameover =
+            isObject(globalResult) &&
+            "events" in globalResult &&
+            "gameover" in globalResult.events;
+        console.log("isGameover: ", isGameover, globalResult.events);
 
-        let responseType = 'update';
+        let responseType = "update";
 
-
-        if (action.type == 'join') {
-            responseType = 'join';
+        if (action.type == "join") {
+            responseType = "join";
             this.onJoin(room_slug, action);
-        }
-        else if (action.type == 'leave') {
-            responseType = 'leave';
+        } else if (action.type == "leave") {
+            responseType = "leave";
             this.onLeave(action);
-
-        }
-        else if (action.type == 'ready') {
+        } else if (action.type == "ready") {
             this.onReady(meta);
-        }
-        else {
+        } else {
             if (!isGameover) {
                 // globalResult.timer.set = 100000;
                 gametimer.processTimelimit(globalResult.timer);
-                gametimer.addRoomDeadline(room_slug, globalResult.timer)
-            }
-            else {
-                globalResult.room.status = 'gameover';
+                gametimer.addRoomDeadline(room_slug, globalResult.timer);
+            } else {
+                globalResult.room.status = "gameover";
             }
         }
-
 
         if (isGameover) {
-            responseType = 'gameover';
-            if (prevStatus == 'pregame' || prevStatus == 'starting') {
-                responseType = 'noshow';
-            } else
-                await this.onGameover(meta);
+            responseType = "gameover";
+            if (prevStatus == "pregame" || prevStatus == "starting") {
+                responseType = "noshow";
+            } else await this.onGameover(meta);
         }
-
-
-
-
 
         // profiler.EndTime('WorkerManagerLoop');
         // console.timeEnd('ActionLoop');
@@ -480,7 +491,6 @@ class GameRunner {
     }
 
     async executeScript(gameScript, action, meta) {
-
         //add timeleft to the action for games to use
         let timeleft = gametimer.calculateTimeleft(globalRoomState);
         if (globalRoomState.timer) {
@@ -489,11 +499,10 @@ class GameRunner {
         }
 
         //add the game database into memory
-        let key = meta.game_slug + '/server.db.' + meta.version + '.json';
+        let key = meta.game_slug + "/server.db." + meta.version + ".json";
         let db = await storage.getGameDatabase(key);
         // console.log("database key", key, meta.game_slug);
         // console.log("database", db);
-
 
         globalDatabase = db;
         globalAction = [action];
@@ -508,21 +517,24 @@ class GameRunner {
             return true;
         }
 
-        console.log("Executed Action: ", action.type, action.room_slug, action.user?.id);
-
+        console.log(
+            "Executed Action: ",
+            action.type,
+            action.room_slug,
+            action.user?.id
+        );
 
         if (globalResult) {
-
             globalResult.room = {
                 room_slug: meta.room_slug,
                 sequence: (globalRoomState?.room?.sequence || 0) + 1,
-                status: globalRoomState?.room?.status || 'pregame',
+                status: globalRoomState?.room?.status || "pregame",
                 starttime: globalRoomState?.room?.starttime || Date.now(),
                 endtime: 0,
-                updated: Date.now()
-            }
+                updated: Date.now(),
+            };
 
-            if (!('timer' in globalResult)) {
+            if (!("timer" in globalResult)) {
                 globalResult = globalRoomState.timer || {};
             }
             globalResult.timer.sequence = globalRoomState.timer.sequence;
@@ -531,13 +543,7 @@ class GameRunner {
 
             //globalResult.timer = globalResult.timer || {};
 
-
-
-
             // globalResult.action = action;
-
-
-
 
             // //don't allow users to override the room status
             // if (globalResult.state) {
@@ -549,26 +555,21 @@ class GameRunner {
 
             //merge result into room state
             globalResult = Object.assign({}, globalRoomState, globalResult);
-
-
         }
 
         return true;
     }
 
     addEvent(type, payload) {
-        if (!globalResult.events)
-            globalResult.events = {}
+        if (!globalResult.events) globalResult.events = {};
 
-        let events = globalResult.events
+        let events = globalResult.events;
         let event = events[type];
         if (!(type in events)) {
             event = payload;
-        }
-        else if (!Array.isArray(event)) {
+        } else if (!Array.isArray(event)) {
             event = [event];
-        }
-        else {
+        } else {
             event.push(payload);
         }
 
@@ -576,15 +577,14 @@ class GameRunner {
     }
 
     onLeave(action) {
-        this.addEvent('leave', { id: action.user.id });
+        this.addEvent("leave", { id: action.user.id });
         let players = globalResult?.players;
-        let player = players[action.user.id]
+        let player = players[action.user.id];
         if (player) {
             player.forfeit = true;
         }
     }
     onJoin(room_slug, action) {
-
         // if (!globalResult.events)
         //     globalResult.events = {}
 
@@ -597,14 +597,12 @@ class GameRunner {
             if (globalResult.state) {
                 let playerList = Object.keys(players);
                 if (playerList.length == 1) {
-                    globalResult.room.status = 'pregame';
-                    globalResult.timer = { ...globalResult.timer, set: 60 }
+                    globalResult.room.status = "pregame";
+                    globalResult.timer = { ...globalResult.timer, set: 60 };
                     gametimer.processTimelimit(globalResult.timer);
-                    gametimer.addRoomDeadline(room_slug, globalResult.timer)
+                    gametimer.addRoomDeadline(room_slug, globalResult.timer);
                 }
-
             }
-
         }
     }
     onReady(meta) {
@@ -613,24 +611,30 @@ class GameRunner {
             let readyCnt = 0;
             let playerCnt = 0;
             for (var id in players) {
-                if (players[id].ready)
-                    readyCnt++;
+                if (players[id].ready) readyCnt++;
                 playerCnt++;
             }
 
             if (playerCnt == readyCnt) {
-                globalResult.room.status = 'starting';
-
-
+                globalResult.room.status = "starting";
 
                 if (meta.maxplayers == 1) {
-                    events.emitGameStart({ type: 'gamestart', room_slug: meta.room_slug, payload: null });
-                }
-                else {
-                    let startTime = 5;
-                    globalResult.timer = { ...globalResult.timer, set: startTime }
+                    events.emitGameStart({
+                        type: "gamestart",
+                        room_slug: meta.room_slug,
+                        payload: null,
+                    });
+                } else {
+                    let startTime = 3;
+                    globalResult.timer = {
+                        ...globalResult.timer,
+                        set: startTime,
+                    };
                     gametimer.processTimelimit(globalResult.timer);
-                    gametimer.addRoomDeadline(meta.room_slug, globalResult.timer)
+                    gametimer.addRoomDeadline(
+                        meta.room_slug,
+                        globalResult.timer
+                    );
                 }
             }
         }
@@ -639,20 +643,35 @@ class GameRunner {
     async onGameover(meta) {
         //moving to postGameManager.js
         return;
-        console.log("GAMEOVER: ", meta, globalResult)
-        if (room.getGameModeName(meta.mode) == 'rank' || meta.mode == 'rank') {
+        console.log("GAMEOVER: ", meta, globalResult);
+        if (room.getGameModeName(meta.mode) == "rank" || meta.mode == "rank") {
             let storedPlayerRatings = {};
             if (globalResult?.timer?.sequence > 2) {
                 if (meta.maxplayers > 1) {
-                    await rank.processPlayerRatings(meta, globalResult.players, globalResult.teams, storedPlayerRatings);
-                    await room.updateLeaderboard(meta.game_slug, globalResult.players);
+                    await rank.processPlayerRatings(
+                        meta,
+                        globalResult.players,
+                        globalResult.teams,
+                        storedPlayerRatings
+                    );
+                    await room.updateLeaderboard(
+                        meta.game_slug,
+                        globalResult.players
+                    );
                 }
             }
 
             if (meta.lbscore || meta.maxplayers == 1) {
                 console.log("Updating high scores: ", globalResult.players);
-                await rank.processPlayerHighscores(meta, globalResult.players, storedPlayerRatings);
-                await room.updateLeaderboardHighscore(meta.game_slug, globalResult.players);
+                await rank.processPlayerHighscores(
+                    meta,
+                    globalResult.players,
+                    storedPlayerRatings
+                );
+                await room.updateLeaderboardHighscore(
+                    meta.game_slug,
+                    globalResult.players
+                );
             }
         }
     }
@@ -660,40 +679,60 @@ class GameRunner {
     runScript(script) {
         if (!script) {
             console.error("Game script is not loaded.");
-            globalErrors = [{ "error": "Game script is not loaded.", payload: null }]
+            globalErrors = [
+                { error: "Game script is not loaded.", payload: null },
+            ];
             return false;
         }
 
         try {
-            profiler.StartTime('Game Logic');
+            profiler.StartTime("Game Logic");
             {
                 // vm.run(script);
-                script.runSync(vmContext, { timeout: 200 })
+                const vmContext = isolate.createContextSync();
+                vmContext.global.setSync(
+                    "global",
+                    vmContext.global.derefInto()
+                );
+                // vmContext.global.setSync('globals', new ivm.Reference(globals));
+                vmContext.global.setSync("gamelog", globals.gamelog);
+                vmContext.global.setSync("gameerror", globals.gameerror);
+                vmContext.global.setSync("save", globals.save);
+                vmContext.global.setSync("random", globals.random);
+                vmContext.global.setSync("game", globals.game);
+                vmContext.global.setSync("actions", globals.actions, {
+                    copy: true,
+                });
+                vmContext.global.setSync("killGame", globals.killGame);
+                vmContext.global.setSync("database", globals.database);
+                vmContext.global.setSync("ignore", globals.ignore);
+
+                console.log(vmContext.global);
+                script.runSync(vmContext, { timeout: 200 });
+                console.log(vmContext);
             }
-            profiler.EndTime('Game Logic', 50);
+            profiler.EndTime("Game Logic", 50);
             return true;
-        }
-        catch (e) {
+        } catch (e) {
             console.error("runScript Error: ", e);
             let stack = e.stack;
-            stack = stack.replace(e.name + ': ' + e.message + '\n', '');
-            let parts = stack.split('\n');
-            let body = '';
+            stack = stack.replace(e.name + ": " + e.message + "\n", "");
+            let parts = stack.split("\n");
+            let body = "";
             for (var i = 0; i < parts.length; i++) {
                 let part = parts[i];
-                if (part.trim().length == 0)
-                    continue;
-                if (part.indexOf('vm.js') == -1)
-                    continue;
-                if (body.length > 0)
-                    body += '\n';
+                if (part.trim().length == 0) continue;
+                if (part.indexOf("vm.js") == -1) continue;
+                if (body.length > 0) body += "\n";
                 body += part;
             }
-            globalErrors = [{
-                type: e.name,
-                title: e.message,
-                body
-            }]
+            globalErrors = [
+                {
+                    type: e.name,
+                    title: e.message,
+                    body,
+                },
+            ];
             return false;
         }
     }
@@ -703,14 +742,10 @@ class GameRunner {
         let name = action.user.displayname;
         let ready = true;
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, rank: 0, score: 0, ready }
-
-        }
-        else {
+            globalRoomState.players[id] = { name, rank: 0, score: 0, ready };
+        } else {
             globalRoomState.players[id].ready = ready;
         }
-
-
     }
 
     onPlayerJoin(action) {
@@ -725,28 +760,32 @@ class GameRunner {
         }
 
         if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, id, rank: 0, score: 0, rating: action.user.rating, portraitid: action.user.portraitid, countrycode: action.user.countrycode }
-        }
-        else {
+            globalRoomState.players[id] = {
+                name,
+                id,
+                rank: 0,
+                score: 0,
+                rating: action.user.rating,
+                portraitid: action.user.portraitid,
+                countrycode: action.user.countrycode,
+            };
+        } else {
             globalRoomState.players[id].name = name;
             globalRoomState.players[id].id = id;
         }
 
         if (team_slug) {
-
             // if (!globalRoomState.teams) {
             //     globalRoomState.teams = {};
             // }
             if (!(team_slug in globalRoomState.teams)) {
-                globalRoomState.teams[team_slug] = { players: [] }
+                globalRoomState.teams[team_slug] = { players: [] };
             }
 
             globalRoomState.teams[team_slug].players.push(action.user.id);
             globalRoomState.players[id].teamid = team_slug;
         }
     }
-
-
 }
 
 module.exports = new GameRunner();
