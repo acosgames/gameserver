@@ -625,7 +625,7 @@ class GameRunner {
                         payload: null,
                     });
                 } else {
-                    let startTime = 3;
+                    let startTime = 30000;
                     globalResult.timer = {
                         ...globalResult.timer,
                         set: startTime,
