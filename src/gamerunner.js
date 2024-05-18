@@ -214,7 +214,7 @@ class GameRunner {
                     action.type != "join" &&
                     action.type != "leave" &&
                     action.type != "ready" &&
-                    action?.user?.id &&
+                    action?.user?.shortid &&
                     globalRoomState?.timer?.sequence != action.timeseq
                 ) {
                     //user must use the same sequence as the script
@@ -244,9 +244,9 @@ class GameRunner {
                     if (action.type == "join") {
                         players = {};
                         actions.map((a) => {
-                            players[a.user.id] = {
+                            players[a.user.shortid] = {
                                 ...a.user,
-                                shortid: a.user.id,
+                                shortid: a.user.shortid,
                             };
                         });
                     }
@@ -399,11 +399,11 @@ class GameRunner {
                     break;
                 case "leave":
                     let players = globalRoomState.players || {};
-                    let player = players[action.user.id];
+                    let player = players[action.user.shortid];
                     if (player) {
                         player.forfeit = true;
                     }
-                    room.removePlayerRoom(action.user.id, room_slug);
+                    room.removePlayerRoom(action.user.shortid, room_slug);
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
@@ -420,7 +420,7 @@ class GameRunner {
                     break;
                 default:
                     if (
-                        action?.user?.id &&
+                        action?.user?.shortid &&
                         globalRoomState?.timer?.sequence != action.timeseq
                     ) {
                         //user must use the same sequence as the script
@@ -521,7 +521,7 @@ class GameRunner {
             "Executed Action: ",
             action.type,
             action.room_slug,
-            action.user?.id
+            action.user?.shortid
         );
 
         if (globalResult) {
@@ -577,9 +577,9 @@ class GameRunner {
     }
 
     onLeave(action) {
-        this.addEvent("leave", { id: action.user.id });
+        this.addEvent("leave", { shortid: action.user.shortid });
         let players = globalResult?.players;
-        let player = players[action.user.id];
+        let player = players[action.user.shortid];
         if (player) {
             player.forfeit = true;
         }
@@ -588,7 +588,7 @@ class GameRunner {
         // if (!globalResult.events)
         //     globalResult.events = {}
 
-        // globalResult.events.join = { id: action.user.id }
+        // globalResult.events.join = { shortid: action.user.shortid }
 
         //start the game if its the first player to join room
         let players = globalResult?.players;
@@ -610,8 +610,8 @@ class GameRunner {
         if (players) {
             let readyCnt = 0;
             let playerCnt = 0;
-            for (var id in players) {
-                if (players[id].ready) readyCnt++;
+            for (var shortid in players) {
+                if (players[shortid].ready) readyCnt++;
                 playerCnt++;
             }
 
@@ -625,7 +625,7 @@ class GameRunner {
                         payload: null,
                     });
                 } else {
-                    let startTime = 30000;
+                    let startTime = 3;
                     globalResult.timer = {
                         ...globalResult.timer,
                         set: startTime,
@@ -707,9 +707,10 @@ class GameRunner {
                 vmContext.global.setSync("database", globals.database);
                 vmContext.global.setSync("ignore", globals.ignore);
 
-                console.log(vmContext.global);
+                console.log(globals);
+                // console.log(vmContext.global);
                 script.runSync(vmContext, { timeout: 200 });
-                console.log(vmContext);
+                // console.log(vmContext);
             }
             profiler.EndTime("Game Logic", 50);
             return true;
@@ -738,31 +739,36 @@ class GameRunner {
     }
 
     onPlayerReady(action) {
-        let id = action.user.id;
-        let name = action.user.displayname;
+        let shortid = action.user.shortid;
+        let displayname = action.user.displayname;
         let ready = true;
-        if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = { name, rank: 0, score: 0, ready };
+        if (!(shortid in globalRoomState.players)) {
+            globalRoomState.players[shortid] = {
+                displayname,
+                rank: 0,
+                score: 0,
+                ready,
+            };
         } else {
-            globalRoomState.players[id].ready = ready;
+            globalRoomState.players[shortid].ready = ready;
         }
     }
 
     onPlayerJoin(action) {
-        let id = action.user.id;
-        let name = action.user.displayname;
+        let shortid = action.user.shortid;
+        let displayname = action.user.displayname;
         let room_slug = action.room_slug;
         let team_slug = action.user.team_slug;
 
-        if (!id) {
-            console.error("Invalid player: " + id);
+        if (!shortid) {
+            console.error("Invalid player: " + shortid);
             return;
         }
 
-        if (!(id in globalRoomState.players)) {
-            globalRoomState.players[id] = {
-                name,
-                id,
+        if (!(shortid in globalRoomState.players)) {
+            globalRoomState.players[shortid] = {
+                displayname,
+                shortid,
                 rank: 0,
                 score: 0,
                 rating: action.user.rating,
@@ -770,8 +776,8 @@ class GameRunner {
                 countrycode: action.user.countrycode,
             };
         } else {
-            globalRoomState.players[id].name = name;
-            globalRoomState.players[id].id = id;
+            globalRoomState.players[shortid].displayname = displayname;
+            globalRoomState.players[shortid].shortid = shortid;
         }
 
         if (team_slug) {
@@ -782,8 +788,8 @@ class GameRunner {
                 globalRoomState.teams[team_slug] = { players: [] };
             }
 
-            globalRoomState.teams[team_slug].players.push(action.user.id);
-            globalRoomState.players[id].teamid = team_slug;
+            globalRoomState.teams[team_slug].players.push(action.user.shortid);
+            globalRoomState.players[shortid].teamid = team_slug;
         }
     }
 }

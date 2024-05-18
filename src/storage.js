@@ -1,12 +1,9 @@
+const cache = require("shared/services/cache");
+const room = require("shared/services/room");
 
-const cache = require('shared/services/cache');
-const room = require('shared/services/room');
-
-var SortedSet = require('redis-sorted-set');
-
+var SortedSet = require("redis-sorted-set");
 
 class Storage {
-
     constructor() {
         this.gameHistory = [];
         this.gameServers = {};
@@ -29,7 +26,6 @@ class Storage {
         this.actionCounts = 0;
         this.actionCursor = 0;
         this.actionLastRunTime = 0;
-
     }
 
     clearRooms() {
@@ -53,26 +49,25 @@ class Storage {
     }
 
     getLastActionRunSeconds() {
-        let now = (new Date()).getTime();
+        let now = new Date().getTime();
         let diff = (now - this.actionLastRunTime) / 1000;
         return diff;
     }
     //calculate the average using previous minute and current minute counts
     calculateActionRate() {
-        let now = (new Date()).getTime();
+        let now = new Date().getTime();
         let diff = (now - this.actionLastRunTime) / 1000;
-        if (diff == 0)
-            diff = Number.EPSILON;
+        if (diff == 0) diff = Number.EPSILON;
         let sum = this.actionCounts;
-        let delta = ((this.actionCountsPrev) > 0 ? 1 : 0)
-        let denominator = (delta + (diff / 60));
+        let delta = this.actionCountsPrev > 0 ? 1 : 0;
+        let denominator = delta + diff / 60;
         let avg = sum / diff;
         return avg;
     }
 
     //count actions ran per minute
     processActionRate() {
-        let now = (new Date()).getTime();
+        let now = new Date().getTime();
         let diff = now - this.actionLastRunTime;
 
         if (diff <= 60000) {
@@ -120,8 +115,7 @@ class Storage {
     }
 
     async getRoomMeta(room_slug) {
-        if (!room_slug)
-            return null;
+        if (!room_slug) return null;
         let meta = await room.findRoom(room_slug);
         if (!meta) {
             return null;
@@ -130,17 +124,14 @@ class Storage {
     }
 
     async getRoomState(room_slug) {
-
         let meta = await this.getRoomMeta(room_slug);
-        if (!meta)
-            return null;
+        if (!meta) return null;
 
         let game = await cache.get(room_slug);
         // let game = this.roomStates[room_slug];
         // if (!game) {
         //     game = await redis.get(room_slug);
         // }
-
 
         //this.roomStates[room_slug] = game;
         return game;
@@ -149,58 +140,49 @@ class Storage {
     async saveRoomState(type, meta, roomState) {
         let room_slug = meta.room_slug;
 
-        if (type == 'join' || type == 'leave') {
+        if (type == "join" || type == "leave") {
             let playerList = Object.keys(roomState.players);
 
             try {
                 room.updateRoomPlayerCount(room_slug, playerList.length);
-            }
-            catch (e) {
+            } catch (e) {
                 console.error(e);
             }
         }
         cache.set(room_slug, roomState, 6000);
     }
 
-
     async cleanupRoom(meta) {
-
         try {
             let roomState = await this.getRoomState(meta.room_slug);
             let players = roomState?.players;
             if (players) {
-
-                for (var id in players) {
-                    cache.del(`rooms/${id}`);
+                for (var shortid in players) {
+                    cache.del(`rooms/${shortid}`);
                 }
-
             }
 
             Promise.all([
                 cache.del(meta.room_slug),
-                cache.del(meta.room_slug + '/meta'),
-                cache.del(meta.room_slug + '/timer'),
-                cache.del(meta.room_slug + '/p')
+                cache.del(meta.room_slug + "/meta"),
+                cache.del(meta.room_slug + "/timer"),
+                cache.del(meta.room_slug + "/p"),
             ]);
 
             room.deleteRoom(meta.room_id);
-        }
-        catch (e) {
+        } catch (e) {
             console.error(e);
         }
-
     }
 
-
     async getTimerData(room_slug) {
-        let timerData = await cache.get(room_slug + '/timer');
+        let timerData = await cache.get(room_slug + "/timer");
         return timerData;
     }
 
     async getNextTimer(gameserver_slug) {
         gameserver_slug = this.getQueueKey();
-        if (!gameserver_slug)
-            return false;
+        if (!gameserver_slug) return false;
 
         //caching to avoid querying redis too much
         // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
@@ -209,23 +191,20 @@ class Storage {
         //     return nexttimer;
         // }
         let nexttimer = this.timerSet.range(0, 0, { withScores: true });
-        if (nexttimer && nexttimer.length > 0)
-            nexttimer = nexttimer[0];
+        if (nexttimer && nexttimer.length > 0) nexttimer = nexttimer[0];
 
         if (nexttimer && nexttimer.length == 2) {
             return { value: nexttimer[0], score: nexttimer[1] };
         }
 
-        if (this.redisTimersLoaded)
-            return false;
+        if (this.redisTimersLoaded) return false;
 
         //query redis for all timers
-        let result = await cache.zrevrange(gameserver_slug + '/timer', 0, -1);
+        let result = await cache.zrevrange(gameserver_slug + "/timer", 0, -1);
         this.redisTimersLoaded = true;
         if (!result || result.length == 0) {
             return false;
         }
-
 
         //add redis results to our local sortedset
         for (var i = 0; i < result.length; i++) {
@@ -235,8 +214,7 @@ class Storage {
 
         //find the next lowest
         nexttimer = this.timerSet.range(-1, undefined, { withScores: true });
-        if (nexttimer && nexttimer.length > 0)
-            nexttimer = nexttimer[0];
+        if (nexttimer && nexttimer.length > 0) nexttimer = nexttimer[0];
 
         if (nexttimer && nexttimer.length == 2) {
             return { value: nexttimer[0], score: nexttimer[1] };
@@ -247,12 +225,10 @@ class Storage {
 
     async addTimer(room_slug, epoch) {
         let gameserver_slug = this.getQueueKey();
-        if (!gameserver_slug)
-            return;
+        if (!gameserver_slug) return;
         let roomTimer = { value: room_slug, score: epoch };
-        let result = cache.zadd(gameserver_slug + '/timer', [roomTimer]);
+        let result = cache.zadd(gameserver_slug + "/timer", [roomTimer]);
         // console.log(result);
-
 
         this.timerSet.add(room_slug, epoch);
 
@@ -287,9 +263,8 @@ class Storage {
 
     async removeTimer(room_slug) {
         let gameserver_slug = this.getQueueKey();
-        if (!gameserver_slug)
-            return;
-        let result = cache.zrem(gameserver_slug + '/timer', [room_slug]);
+        if (!gameserver_slug) return;
+        let result = cache.zrem(gameserver_slug + "/timer", [room_slug]);
 
         this.timerSet.rem(room_slug);
 
@@ -308,21 +283,20 @@ class Storage {
         return result;
     }
     async setRoomDeadline(room_slug, data) {
-        cache.set(room_slug + '/timer', data);
+        cache.set(room_slug + "/timer", data);
     }
 
     async clearRoomDeadline(room_slug) {
-        cache.del(room_slug + '/timer');
+        cache.del(room_slug + "/timer");
         // delete this.cache[room_slug + '/timer'];
         // await redis.del(room_slug + '/timer');
     }
 
     makeGame(meta) {
-
         let roomState = {};
 
         if (roomState.killGame) {
-            delete roomState['killGame'];
+            delete roomState["killGame"];
         }
         roomState.room = {};
         roomState.state = {};
@@ -332,7 +306,7 @@ class Storage {
         roomState.events = {};
         roomState.timer = { sequence: 0 };
 
-        roomState.players = {}
+        roomState.players = {};
 
         if (meta?.teams) {
             roomState.teams = {};
@@ -344,8 +318,8 @@ class Storage {
                     order: team.team_order,
                     players: [],
                     rank: 0,
-                    score: 0
-                }
+                    score: 0,
+                };
             }
         }
 
