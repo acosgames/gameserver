@@ -166,7 +166,7 @@ class Storage {
                 cache.del(meta.room_slug),
                 cache.del(meta.room_slug + "/meta"),
                 cache.del(meta.room_slug + "/timer"),
-                cache.del(meta.room_slug + "/p"),
+                // cache.del(meta.room_slug + "/p"),
             ]);
 
             room.deleteRoom(meta.room_id);

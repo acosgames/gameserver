@@ -224,7 +224,7 @@ class GameRunner {
                         globalRoomState?.timer?.sequence,
                         action.timeseq
                     );
-                    return true;
+                    continue;
                 }
 
                 if (action.type == "noshow") {
@@ -284,7 +284,7 @@ class GameRunner {
                             {}
                         );
 
-                        if (passed.isGameover) {
+                        if (passed.isGameover && passed.type == "gameover") {
                             rabbitmq.publish("ws", "onRoomGameover", {
                                 type: passed.type,
                                 room_slug: action.room_slug,
@@ -350,7 +350,11 @@ class GameRunner {
 
         if (!globalRoomState) return false;
 
-        if (globalRoomState?.room?.status == "gameover") {
+        if (
+            globalRoomState?.room?.status == "gameover" ||
+            globalRoomState?.room?.status == "gamecancelled" ||
+            globalRoomState?.room?.status == "gameerror"
+        ) {
             return false;
         }
 
@@ -393,6 +397,16 @@ class GameRunner {
                     // globalRoomState = storage.makeGame(false, globalRoomState);
                     // if (globalRoomState.state)
                     globalRoomState.room.status = "gameover";
+                    break;
+                case "gamecancelled":
+                    // globalRoomState = storage.makeGame(false, globalRoomState);
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = "gamecancelled";
+                    break;
+                case "gameerror":
+                    // globalRoomState = storage.makeGame(false, globalRoomState);
+                    // if (globalRoomState.state)
+                    globalRoomState.room.status = "gameerror";
                     break;
                 case "join":
                     this.onPlayerJoin(action);
@@ -452,10 +466,15 @@ class GameRunner {
         let success = await this.executeScript(gameScript, action, meta);
         if (!success) return false;
 
-        let isGameover =
-            isObject(globalResult) &&
-            "events" in globalResult &&
-            "gameover" in globalResult.events;
+        let isGameover = false;
+
+        if (isObject(globalResult) && "events" in globalResult) {
+            if ("gameover" in globalResult.events) isGameover = "gameover";
+            else if ("gamecancelled" in globalResult.events)
+                isGameover = "gamecancelled";
+            else if ("gameerror" in globalResult.events)
+                isGameover = "gameerror";
+        }
         console.log("isGameover: ", isGameover, globalResult.events);
 
         let responseType = "update";
@@ -474,12 +493,13 @@ class GameRunner {
                 gametimer.processTimelimit(globalResult.timer);
                 gametimer.addRoomDeadline(room_slug, globalResult.timer);
             } else {
-                globalResult.room.status = "gameover";
+                globalResult.room.status = isGameover;
+                globalResult.room.endtime = Date.now();
             }
         }
 
         if (isGameover) {
-            responseType = "gameover";
+            responseType = isGameover;
             if (prevStatus == "pregame" || prevStatus == "starting") {
                 responseType = "noshow";
             } else await this.onGameover(meta);
