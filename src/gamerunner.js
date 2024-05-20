@@ -257,6 +257,7 @@ class GameRunner {
                         payload: {
                             events: { error: "Game crashed. Please report." },
                             players,
+                            room: { status: "gameerror" },
                         },
                     };
                     rabbitmq.publish("ws", "onRoomUpdate", outMessage);
