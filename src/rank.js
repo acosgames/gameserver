@@ -13,10 +13,7 @@ class Rank {
     async processPlayerHighscores(meta, players, storedPlayerRatings) {
         storedPlayerRatings = storedPlayerRatings || {};
 
-        let roomRatings = await room.findPlayerRatings(
-            meta.room_slug,
-            meta.game_slug
-        );
+        let roomRatings = await room.findPlayerRatings(meta);
         if (roomRatings && roomRatings.length > 0) {
             for (var i = 0; i < roomRatings.length; i++) {
                 let roomRating = roomRatings[i];
@@ -115,7 +112,7 @@ class Rank {
         let rankOther = [];
         let playerList = [];
 
-        let roomRatings = await room.findPlayerRatings(room_slug, game_slug);
+        let roomRatings = await room.findPlayerRatings(meta);
         if (roomRatings && roomRatings.length > 0) {
             for (var i = 0; i < roomRatings.length; i++) {
                 let roomRating = roomRatings[i];
