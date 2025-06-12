@@ -12,34 +12,36 @@ class GameTimer {
     }
 
     calculateTimeleft(roomState) {
-        if (!roomState || !roomState.timer || !roomState.timer.end) return 0;
+        if (!roomState || !roomState.room || !roomState.room.timeend) return 0;
 
-        let deadline = roomState.timer.end;
+        let deadline = roomState.room.timeend;
         let now = new Date().getTime();
         let timeleft = deadline - now;
 
         return timeleft;
     }
 
-    processTimelimit(timer) {
-        if (!timer) {
-            timer = { sequence: 0 };
-        }
+    processTimelimit(gamestate) {
+        // if (!room) {
+        //     timer = { sequence: 0 };
+        // }
+        let timer = gamestate?.timer;
         if (!timer || !timer.set) return;
-
         if (typeof timer.set === "undefined") return;
 
-        let seconds = Math.min(3000000, Math.max(1, timer.set));
-        let sequence = timer.sequence || 0;
+        let timesec = Math.min(3000000, Math.max(1, timer.set));
+        // let sequence = timer.sequence || 0;
         let now = new Date().getTime();
-        let deadline = now + seconds * 1000;
+        let timeend = now + timesec * 1000;
         // let timeleft = deadline - now;
 
-        timer.end = deadline;
-        timer.seconds = seconds;
+        // let room = gamestate?.room;
+        // room.timeend = timeend;
+        // room.timesec = timesec;
         // timer.data = [deadline, seconds];
-        timer.sequence = sequence + 1;
-        delete timer.set;
+        // timer.sequence = sequence + 1;
+        delete gamestate.timer;
+        return { timeend, timesec };
     }
 
     async processDeadlines() {
@@ -69,7 +71,7 @@ class GameTimer {
             if (now < next.score) return false;
 
             let action = {};
-            if (!roomState.room?.status) {
+            if (!roomState.room?.status || roomState?.room?.status == "none") {
                 console.log("timer ended: unkonwn");
                 action = {
                     type: "noshow",
@@ -115,13 +117,13 @@ class GameTimer {
         storage.removeTimer(room_slug);
     }
 
-    async addRoomDeadline(room_slug, timer) {
-        if (!timer || !timer.end) {
+    async addRoomDeadline(room_slug, timeend) {
+        if (typeof timeend === "undefined") {
             return;
         }
 
-        console.log("Adding timer: ", room_slug, timer);
-        storage.addTimer(room_slug, timer.end);
+        console.log("Adding timer: ", room_slug, timeend);
+        storage.addTimer(room_slug, timeend);
     }
 }
 

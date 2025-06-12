@@ -1,27 +1,27 @@
 {
-  "name": "gameserver",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "npm run dev",
-    "dev": "pm2 start index.js --name gameserver --node-args=\"--inspect=10003\" --watch \". ../shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "dependencies": {
-    "acos-json-delta": "^1.0.4",
-    "acos-json-encoder": "^1.0.2",
-    "axios": "^0.21.1",
-    "isolated-vm": "^4.7.2",
-    "node-cache": "^5.1.2",
-    "openskill": "^1.4.1",
-    "priorityqueuejs": "^2.0.0",
-    "queue-fifo": "^0.2.6",
-    "redis-sorted-set": "^2.0.0",
-    "seedrandom": "^3.0.5",
-    "shared": "file:../shared",
-    "websocket": "^1.0.33"
-  },
-  "author": "",
-  "license": "ISC"
+    "name": "gameserver",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "start": "npm run dev",
+        "dev": "pm2 start index.js --name gameserver --node-args=\"--inspect=10003\" --watch \". ../shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "acos-json-delta": "^1.0.4",
+        "acos-json-encoder": "^1.0.15",
+        "axios": "^1.7.9",
+        "isolated-vm": "^4.7.2",
+        "node-cache": "^5.1.2",
+        "openskill": "^1.4.1",
+        "priorityqueuejs": "^2.0.0",
+        "queue-fifo": "^0.2.6",
+        "redis-sorted-set": "^2.0.0",
+        "seedrandom": "^3.0.5",
+        "shared": "file:../shared",
+        "websocket": "^1.0.33"
+    },
+    "author": "",
+    "license": "ISC"
 }

@@ -298,13 +298,20 @@ class Storage {
         if (roomState.killGame) {
             delete roomState["killGame"];
         }
-        roomState.room = {};
+        roomState.room = {
+            next_id: null,
+            next_action: null,
+            events: {},
+            starttime: Date.now(),
+            timeend: 0,
+            timesec: 0,
+        };
         roomState.state = {};
         // roomState.rules = {};
-        roomState.next = {};
+        // roomState.next = {};
         // roomState.prev = {};
-        roomState.events = {};
-        roomState.timer = { sequence: 0 };
+        // roomState.events = {};
+        // roomState.timer = { sequence: 0 };
 
         roomState.players = {};
 
