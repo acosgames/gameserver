@@ -23,6 +23,8 @@ var globalIgnore = false;
 
 var globalSkipCount = {};
 
+var globalRandomFuncs = {};
+
 const ivm = require("isolated-vm");
 
 let isolateOptions = {};
@@ -83,7 +85,7 @@ const globals = {
     }),
     random: new ivm.Callback(() => {
         try {
-            return DiscreteRandom.random();
+            return globalRandomFuncs[globalResult.room.room_slug] || DiscreteRandom.random();
         } catch (e) {
             console.error(e);
         }
@@ -205,6 +207,9 @@ class GameRunner {
                 previousRoomState = {};
                 globalRoomState = storage.makeGame(meta);
                 await storage.saveRoomState("newgame", meta, globalRoomState);
+
+                let seedStr = meta.room_slug + globalRoomState.room.starttime;
+                globalRandomFuncs[meta.room_slug] = DiscreteRandom.seed(seedStr);
             }
 
             if (!globalRoomState.room?.events) globalRoomState.room.events = {};
@@ -436,7 +441,7 @@ class GameRunner {
                     if (player) {
                         player.forfeit = true;
                     }
-                    room.removePlayerRoom(action.user.shortid, room_slug);
+                    // if (meta.maxplayers > 1) room.removePlayerRoom(action.user.shortid, room_slug);
                     break;
                 // case 'reset':
                 //     globalRoomState = storage.makeGame(false, globalRoomState);
@@ -475,11 +480,13 @@ class GameRunner {
             delete globalSkipCount[room_slug];
         }
 
-        let seedStr = meta.room_slug + globalRoomState.room.starttime;
-        DiscreteRandom.seed(seedStr);
+        // let seedStr = meta.room_slug + globalRoomState.room.starttime;
+        // globalRandomFuncs[meta.room_slug] = DiscreteRandom.seed(seedStr);
 
         let success = await this.executeScript(gameScript, action, meta);
         if (!success) return false;
+
+        if (!this.validateGlobalResult()) return false;
 
         let isGameover = false;
 
@@ -557,6 +564,19 @@ class GameRunner {
         return { type: responseType, isGameover };
     }
 
+    validateGlobalResult() {
+        if (!globalResult) return false;
+        if (!globalResult?.players) return false;
+        if (!isObject(globalResult?.players)) return false;
+        for (let key in globalResult.players) {
+            if (!isObject(globalResult.players[key])) return false;
+            if (!globalResult.players[key].displayname) return false;
+        }
+        if (!isObject(globalResult?.room)) return false;
+
+        return true;
+    }
+
     async executeScript(gameScript, action, meta) {
         //add the game database into memory
         let key = meta.game_slug + "/server.db." + meta.version + ".json";
@@ -630,6 +650,9 @@ class GameRunner {
             // }
         }
 
+        if (!globalResult.room?.events) {
+            globalResult.room.events = {};
+        }
         globalResult.room.events.join = action.user.shortid;
     }
     onReady(meta) {
