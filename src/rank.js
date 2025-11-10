@@ -1,11 +1,11 @@
 var { rating, rate, ordinal } = require("openskill");
-const rabbitmq = require("shared/services/rabbitmq");
-const room = require("shared/services/room");
-const game = require("shared/services/game");
+const rabbitmq = require('shared/services/rabbitmq');
+const room = require('shared/services/room');
+const game = require('shared/services/game');
 // const game = new GameService();
 
-const { setPlayerRating } = require("shared/services/room");
-const { muRating } = require("shared/util/ratingconfig");
+const { setPlayerRating } = require('shared/services/room');
+const { muRating } = require('shared/util/ratingconfig');
 
 class Rank {
     constructor() {}

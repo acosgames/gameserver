@@ -1,14 +1,14 @@
 // const { VM, VMScript, NodeVM } = require('vm2');
-const rabbitmq = require("shared/services/rabbitmq");
-const room = require("shared/services/room");
+const rabbitmq = require('shared/services/rabbitmq');
+const room = require('shared/services/room');
 const storage = require("./storage");
 const gametimer = require("./gametimer");
 const rank = require("./rank");
 const delta = require("acos-json-delta");
-const profiler = require("shared/util/profiler");
+const profiler = require('shared/util/profiler');
 const events = require("./events");
 
-const { isObject } = require("shared/util/utils");
+const { isObject } = require('shared/util/utils');
 
 const DiscreteRandom = require("./DiscreteRandom");
 
