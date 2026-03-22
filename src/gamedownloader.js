@@ -8,11 +8,11 @@ class GameDownloader {
     async downloadServerFiles(action, meta, isolate) {
         let room_slug = action.room_slug;
 
-        profiler.StartTime("downloadServerFiles.getRoomMeta");
+        // profiler.StartTime("downloadServerFiles.getRoomMeta");
         meta = meta || await storage.getRoomMeta(room_slug);
-        profiler.EndTime("downloadServerFiles.getRoomMeta");
+        // profiler.EndTime("downloadServerFiles.getRoomMeta");
 
-        profiler.StartTime("downloadServerFiles.downloadGameJS");
+        // profiler.StartTime("downloadServerFiles.downloadGameJS");
         try {
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
 
@@ -31,13 +31,13 @@ class GameDownloader {
             console.error("Error: Script unable to be created for: ", action);
             console.log('Error:', e);
         }
-        profiler.EndTime("downloadServerFiles.downloadGameJS");
+        // profiler.EndTime("downloadServerFiles.downloadGameJS");
 
 
         if (!meta.db)
             return;
 
-        profiler.StartTime("downloadServerFiles.downloadDatabase");
+        // profiler.StartTime("downloadServerFiles.downloadDatabase");
         try {
             let key = meta.game_slug + '/server.db.' + meta.version + '.json';
             let gameDatabase = storage.getGameDatabase(key);
@@ -53,7 +53,7 @@ class GameDownloader {
             console.error("Error: Database unable to be created for: ", action);
             console.log('Error:', e);
         }
-        profiler.EndTime("downloadServerFiles.downloadDatabase");
+        // profiler.EndTime("downloadServerFiles.downloadDatabase");
     }
 
     async downloadGameJS(key, meta, isolate) {

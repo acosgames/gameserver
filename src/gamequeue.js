@@ -1,6 +1,6 @@
 var Queue = require('queue-fifo');
 
-const events = require('./events');
+// const events = require('./events');
 const storage = require('./storage');
 
 const gamedownloader = require('./gamedownloader');
@@ -23,7 +23,7 @@ class GameQueue {
     }
 
     start() {
-        events.addNextActionListener(this.onNextAction.bind(this));
+        // events.addNextActionListener(this.onNextAction.bind(this));
     }
 
     onNextAction(action) {
@@ -48,6 +48,7 @@ class GameQueue {
     }
 
     async tryDequeue() {
+        profiler.StartTime('tryDequeue');
         let now = (new Date()).getTime();
         let elapsed = (now - this.lastProcessed) / 1000;
         if ((this.isProcessing && elapsed < 60) || this.actions.size() == 0) {
@@ -85,6 +86,7 @@ class GameQueue {
 
         }
         this.isProcessing = false;
+        profiler.EndTime('tryDequeue');
 
         this.tryDequeue();
     }
@@ -115,21 +117,22 @@ class GameQueue {
                 firstAction = action[0];
             }
 
-            profiler.StartTime("GameQueue.tryRunGame.roomMeta");
+            // profiler.StartTime("GameQueue.tryRunGame.roomMeta");
             let meta = await storage.getRoomMeta(firstAction.room_slug);
             if (!meta) {
                 let gamekey = meta.game_slug + meta.version;
                 this.gameActions[gamekey].clear();
                 this.isProcessing = false;
                 this.gameBusy[gamekey] = false;
+                profiler.EndTime("GameQueue.tryRunGame");
                 this.tryRunGame(gamekey);
                 return;
             }
-            profiler.EndTime("GameQueue.tryRunGame.roomMeta");
+            // profiler.EndTime("GameQueue.tryRunGame.roomMeta");
 
-            profiler.StartTime("GameQueue.tryRunGame.serverFiles");
+            // profiler.StartTime("GameQueue.tryRunGame.serverFiles");
             await gamedownloader.downloadServerFiles(firstAction, meta, gamerunner.getIsolate());
-            profiler.EndTime("GameQueue.tryRunGame.serverFiles");
+            // profiler.EndTime("GameQueue.tryRunGame.serverFiles");
 
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);
@@ -137,11 +140,12 @@ class GameQueue {
             if (!gameServer) {
                 console.log("tryRunGame missing gameserver", gamekey);
                 this.gameBusy[gamekey] = false;
+                profiler.EndTime("GameQueue.tryRunGame");
                 this.tryRunGame(gamekey);
                 return;
             }
 
-            profiler.StartTime("GameQueue.tryRunGame.runAction");
+            // profiler.StartTime("GameQueue.tryRunGame.runAction");
             action = this.gameActions[gamekey].dequeue();
             let passed = await gamerunner.runAction(action, gameServer.script, meta);
             if (!passed) {
@@ -149,15 +153,15 @@ class GameQueue {
                 this.gameActions[gamekey].clear();
                 this.isProcessing = false;
             }
-            profiler.EndTime("GameQueue.tryRunGame.runAction");
+            // profiler.EndTime("GameQueue.tryRunGame.runAction");
         }
         catch (e) {
             console.error(e);
         }
         this.gameBusy[gamekey] = false;
 
-        this.tryRunGame(gamekey);
         profiler.EndTime("GameQueue.tryRunGame");
+        this.tryRunGame(gamekey);
         // profiler.EndTime('GameServer-loop');
     }
 

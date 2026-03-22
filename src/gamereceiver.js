@@ -2,11 +2,12 @@ const rabbitmq = require('shared/services/rabbitmq');
 const redis = require('shared/services/redis');
 const events = require('./events');
 const storage = require('./storage');
-const gamedownloader = require('./gamedownloader');
+// const gamedownloader = require('./gamedownloader');
 const profiler = require('shared/util/profiler');
 const { generateAPIKEY } = require('shared/util/idgen');
 const fs = require('fs');
-const gamerunner = require('./gamerunner');
+// const gamerunner = require('./gamerunner');
+const gamequeue = require('./gamequeue');
 
 process.on('SIGTERM', signal => {
     cleanup();
@@ -166,7 +167,8 @@ class GameReceiver {
         let key = msg.key || (game_slug + '/' + room_slug);
         await this.createGameReceiver(key, initialActions);
 
-        events.emitLoadGame({ msg, meta });
+        // gamequeue.onLoadGame
+        // events.emitLoadGame({ msg, meta });
         return true;
     }
 
@@ -174,7 +176,8 @@ class GameReceiver {
         //profiler.StartTime('GameServer-loop');
         console.log("ForwardActionReceived", Date.now())
         if (actions) {
-            events.emitNextAction(actions);
+            gamequeue.onNextAction(actions);
+            // events.emitNextAction(actions);
         }
         // if (Array.isArray(actions)) {
         //     for (let i = 0; i < actions.length; i++) {

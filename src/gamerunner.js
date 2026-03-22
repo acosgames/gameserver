@@ -337,13 +337,14 @@ class GameRunner {
 
             if (previousRoomState?.room) previousRoomState.room.events = {};
 
-            console.log("GLOBALRESULT = ", JSON.stringify(globalResult));
+            // console.log("GLOBALRESULT = ", JSON.stringify(globalResult));
             let deltaState = delta.delta(previousRoomState, globalResult, {});
 
             // if (actions.length == 1)
             //     deltaState.action = actions[0];
             // else
             //     deltaState.action = actions;
+            console.log("Game Updated: ", (new Date()).getTime());
 
             rabbitmq.publish("ws", "onRoomUpdate", {
                 type: responseType,
@@ -363,7 +364,7 @@ class GameRunner {
     }
 
     async runActionEx(action, gameScript, meta) {
-        console.log("runAction", action);
+        // console.log("runAction", action);
         let room_slug = meta.room_slug;
 
         globalIgnore = false;
@@ -496,7 +497,7 @@ class GameRunner {
             else if (globalResult.room?.events?.gameerror) isGameover = "gameerror";
         }
 
-        console.log("isGameover: ", isGameover, globalResult.room?.events);
+        // console.log("isGameover: ", isGameover, globalResult.room?.events);
 
         let responseType = "update";
 
@@ -597,7 +598,7 @@ class GameRunner {
             return true;
         }
 
-        console.log("Executed Action: ", action.type, action.room_slug, action.user?.shortid);
+        // console.log("Executed Action: ", action.type, action.room_slug, action.user?.shortid);
 
         return true;
     }
@@ -741,7 +742,7 @@ class GameRunner {
                 vmContext.global.setSync("database", globals.database);
                 vmContext.global.setSync("ignore", globals.ignore);
 
-                console.log(globals);
+                // console.log(globals);
                 // console.log(vmContext.global);
                 script.runSync(vmContext, { timeout: 200 });
                 // console.log(vmContext);
