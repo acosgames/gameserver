@@ -1,8 +1,8 @@
-const ObjectStorageService = require('shared/services/objectstorage');
+const ObjectStorageService = require('shared/services/objectstorage.js');
 const s3 = new ObjectStorageService();
 const storage = require('./storage');
 // const { VMScript } = require('vm2');
-const profiler = require('shared/util/profiler');
+const profiler = require('shared/util/profiler.js');
 class GameDownloader {
 
     async downloadServerFiles(action, meta, isolate) {

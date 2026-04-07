@@ -1,10 +1,10 @@
-const rabbitmq = require('shared/services/rabbitmq');
-const redis = require('shared/services/redis');
+const rabbitmq = require('shared/services/rabbitmq.js');
+const redis = require('shared/services/redis.js');
 const events = require('./events');
 const storage = require('./storage');
 // const gamedownloader = require('./gamedownloader');
-const profiler = require('shared/util/profiler');
-const { generateAPIKEY } = require('shared/util/idgen');
+const profiler = require('shared/util/profiler.js');
+const { generateAPIKEY } = require('shared/util/idgen.js');
 const fs = require('fs');
 // const gamerunner = require('./gamerunner');
 const gamequeue = require('./gamequeue');
@@ -164,7 +164,7 @@ class GameReceiver {
 
         let game_slug = meta.game_slug;
 
-        let key = msg.key || (game_slug + '/' + room_slug);
+        let key =(game_slug + '/' + room_slug);
         await this.createGameReceiver(key, initialActions);
 
         // gamequeue.onLoadGame
@@ -198,9 +198,7 @@ class GameReceiver {
         //subscribe to the game room
         storage.addRoom(key);
         let queueKey = storage.getQueueKey();
-        await rabbitmq.subscribe('action', key, async (gameMessage) => {
-            return await this.onNextAction(gameMessage);
-        }, queueKey)
+        await rabbitmq.subscribe('action', key, this.onNextAction.bind(this), queueKey);
 
         //save the queue key for restarts
         // let queueKeyPath = './saved/queuekey.txt';

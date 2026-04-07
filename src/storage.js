@@ -1,5 +1,5 @@
-const cache = require('shared/services/cache');
-const room = require('shared/services/room');
+const cache = require('shared/services/cache.js');
+const room = require('shared/services/room.js');
 
 var SortedSet = require("redis-sorted-set");
 
