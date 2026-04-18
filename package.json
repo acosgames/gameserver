@@ -2,15 +2,19 @@
     "name": "gameserver",
     "version": "1.0.0",
     "description": "",
-    "main": "index.js",
+    "type": "module",
+    "main": "dist/index.js",
     "scripts": {
-        "start": "npm run dev",
-        "dev": "pm2 start index.js --name gameserver --node-args=\"--inspect=10003\" --watch \". ../shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
+        "start": "concurrently -n tsc,node \"npm:build:watch\" \"npm:start:watch\"",
+        "build": "tsc -p tsconfig.json",
+        "build:watch": "tsc -p tsconfig.json --noCheck --watch --preserveWatchOutput",
+        "start:watch": "node --inspect=9944 --watch --enable-source-maps --watch-preserve-output dist/index.js",
+        "dev": "pm2 start dist/index.js --name gameserver --node-args=\"--inspect=10003\" --watch \"dist ../shared\" --ignore-watch \"./serverScripts package.json node_modules\"",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "dependencies": {
         "acos-json-delta": "^1.0.4",
-        "acos-json-encoder": "^1.0.15",
+        "acos-json-encoder": "^2.0.13",
         "axios": "^1.7.9",
         "isolated-vm": "^6.0.2",
         "node-cache": "^5.1.2",
@@ -23,5 +27,9 @@
         "websocket": "^1.0.33"
     },
     "author": "",
-    "license": "ISC"
+    "license": "ISC",
+    "devDependencies": {
+        "@types/node": "^20.19.39",
+        "typescript": "^5.9.3"
+    }
 }

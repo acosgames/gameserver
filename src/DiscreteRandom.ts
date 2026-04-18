@@ -1,5 +1,4 @@
-const seedrandom = require('seedrandom');
-
+import seedrandom from 'seedrandom';
 class DiscreteRandom {
     constructor() {
         this.sequence = 0;
@@ -73,4 +72,4 @@ class DiscreteRandom {
 
 }
 
-module.exports = new DiscreteRandom();
+export default new DiscreteRandom();

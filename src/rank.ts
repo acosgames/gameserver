@@ -1,0 +1,455 @@
+import { rating, rate, ordinal } from "openskill";
+import rabbitmq from "shared/services/rabbitmq.js";
+import room from "shared/services/room.js";
+import game from "shared/services/game.js";
+// const game = new GameService();
+
+import room from "shared/services/room.js";
+import ratingConfig from "shared/util/ratingconfig.js";
+import ratings from "shared/services/ratings.js";
+class Rank {
+    constructor() {}
+
+    async processPlayerHighscores(meta, players, storedPlayerRatings) {
+        storedPlayerRatings = storedPlayerRatings || {};
+
+        let roomRatings = await ratings.findPlayerRatings(meta);
+        if (roomRatings && roomRatings.length > 0) {
+            for (var i = 0; i < roomRatings.length; i++) {
+                let roomRating = roomRatings[i];
+                storedPlayerRatings[roomRating.shortid] = roomRating;
+            }
+        }
+
+        const game_slug = meta.game_slug;
+        const room_slug = meta.room_slug;
+        let highScoreList = [];
+
+        let gameinfo = await room.getGameInfo(game_slug);
+
+        for (var shortid in players) {
+            let player = players[shortid];
+
+            if (!(shortid in storedPlayerRatings)) {
+                storedPlayerRatings[shortid] = await ratings.findPlayerRating(
+                    shortid,
+                    meta.game_slug
+                );
+            }
+            if (typeof player.score === "undefined") {
+                console.error(
+                    "Player [" +
+                        shortid +
+                        "] (" +
+                        player.displayname +
+                        ") is missing score"
+                );
+                return;
+            }
+
+            if (player.score > storedPlayerRatings[shortid].highscore) {
+                highScoreList.push({
+                    shortid: shortid,
+                    game_slug: meta.game_slug,
+                    highscore: player.score || 0,
+                });
+                player.highscore = player.score;
+                console.log(
+                    "NEW high score for player: ",
+                    shortid,
+                    player.score,
+                    player.highscore
+                );
+
+                rabbitmq.publishQueue("notifyDiscord", {
+                    type: "score",
+                    user: player.displayname,
+                    game_title: gameinfo?.name || game_slug,
+                    game_slug,
+                    room_slug,
+                    score: player.score,
+                    highscore: player.score,
+                    thumbnail: gameinfo?.preview_images || "",
+                });
+            } else {
+                player.highscore = storedPlayerRatings[shortid].highscore;
+                highScoreList.push({
+                    shortid: shortid,
+                    game_slug: meta.game_slug,
+                    highscore: player.highscore || 0,
+                });
+                console.log(
+                    "OLD high score for player: ",
+                    shortid,
+                    player.score,
+                    player.highscore
+                );
+                rabbitmq.publishQueue("notifyDiscord", {
+                    type: "score",
+                    user: player.displayname,
+                    game_title: gameinfo?.name || game_slug,
+                    game_slug,
+                    room_slug,
+                    highscore: player.highscore,
+                    score: player.score,
+                    thumbnail: gameinfo?.preview_images || "",
+                });
+            }
+        }
+
+        if (highScoreList.length > 0)
+            ratings.updateAllPlayerHighscores(highScoreList, meta.maxplayers == 1);
+    }
+
+    async processPlayerRatings(meta, players, teams, storedPlayerRatings) {
+        const game_slug = meta?.game_slug;
+        const room_slug = meta?.room_slug;
+
+        //add saved ratings to players in openskill format
+        storedPlayerRatings = storedPlayerRatings || {};
+        let playerRatings = {};
+        let rankOne = [];
+        let rankOther = [];
+        let playerList = [];
+
+        let roomRatings = await ratings.findPlayerRatings(meta);
+        if (roomRatings && roomRatings.length > 0) {
+            for (var i = 0; i < roomRatings.length; i++) {
+                let roomRating = roomRatings[i];
+                storedPlayerRatings[roomRating.shortid] = roomRating;
+            }
+        }
+
+        for (var shortid in players) {
+            let player = players[shortid];
+
+            if (!(shortid in storedPlayerRatings)) {
+                storedPlayerRatings[shortid] = await ratings.findPlayerRating(
+                    shortid,
+                    game_slug
+                );
+            }
+            if (typeof player.rank === "undefined") {
+                console.error(
+                    "Player [" +
+                        shortid +
+                        "] (" +
+                        player.displayname +
+                        ") is missing rank"
+                );
+                return;
+            }
+
+            let playerRating = storedPlayerRatings[shortid];
+
+            playerRating.rank = player.rank;
+            if (teams && player.teamid)
+                playerRating.rank = teams[player.teamid].rank;
+
+            if (typeof player.score !== "undefined") {
+                playerRating.score = player.score;
+            }
+            playerRatings[shortid] = playerRating;
+        }
+
+        let lowestRank = 99999;
+        for (var shortid in players) {
+            let player = players[shortid];
+            if (player.rank < lowestRank) lowestRank = player.rank;
+        }
+        for (var shortid in players) {
+            let player = players[shortid];
+            if (typeof player.rank === "undefined") {
+                console.error(
+                    "Player [" +
+                        shortid +
+                        "] (" +
+                        player.displayname +
+                        ") is missing rank"
+                );
+                return;
+            }
+
+            if (player.rank == lowestRank) {
+                rankOne.push(storedPlayerRatings[shortid]);
+            } else {
+                rankOther.push(storedPlayerRatings[shortid]);
+            }
+        }
+
+        let isTied = false;
+        if (rankOther.length == 0) {
+            isTied = true;
+            for (var playerRating of rankOne) {
+                playerRating.tie++;
+            }
+        } else {
+            for (var playerRating of rankOne) {
+                playerRating.win++;
+            }
+            for (var playerRating of rankOther) {
+                playerRating.loss++;
+            }
+        }
+
+        // console.log("Before Rating: ", playerRatings);
+        //run OpenSkill rating system
+        this.calculateRanks(playerRatings, teams);
+
+        //update player ratings from openskill mutation of playerRatings
+        let ratingsList = [];
+
+        let notifyInfo = [];
+
+        for (var shortid in players) {
+            let player = players[shortid];
+
+            if (!(shortid in playerRatings)) {
+                continue;
+            }
+            let rating = playerRatings[shortid];
+
+            rating.played = Number(rating.played) + 1;
+
+            //UPDATE PLAYER data sent back, using private fields to hide the win/loss/tie/played counts from others
+            player.rating = rating.rating;
+            // player.ratingTxt = game.ratingToRank(rating.rating);
+            player._win = rating.win;
+            player._loss = rating.loss;
+            player._tie = rating.tie;
+            player._played = rating.played;
+
+            notifyInfo.push({
+                displayname: player.displayname,
+                rank: player.rank,
+                score: player.score,
+                rating: player.rating,
+                // ratingTxt: player.ratingTxt,
+            });
+
+            ratingsList.push({
+                shortid: shortid,
+                game_slug: meta.game_slug,
+                rating: rating.rating,
+                mu: rating.mu,
+                sigma: rating.sigma,
+                win: rating.win,
+                tie: rating.tie,
+                loss: rating.loss,
+                highscore: rating.score || 0,
+            });
+
+            delete rating["rank"];
+            delete rating["score"];
+
+            ratings.setPlayerRating(shortid, meta.game_slug, rating);
+        }
+
+        let gameinfo = await room.getGameInfo(game_slug);
+
+        rabbitmq.publishQueue("notifyDiscord", {
+            type: "gameover",
+            users: notifyInfo,
+            game_slug,
+            room_slug,
+            game_title: gameinfo?.name || game_slug,
+            thumbnail: gameinfo?.preview_images || "",
+        });
+
+        ratings.updateAllPlayerRatings(ratingsList);
+
+        // console.log("After Rating: ", storedPlayerRatings);
+        return ratingsList;
+    }
+
+    calculateRanks(players, teams) {
+        if (teams && teams.length > 0) {
+            return this.calculateTeams(players, teams);
+        }
+
+        return this.calculateFFA(players);
+    }
+
+    calculateTeams(players, gameteams) {
+        let rank = [];
+        let score = [];
+        let ratings = [];
+        let teams = [];
+
+        if (!players) return false;
+
+        try {
+            let results = null;
+
+            //rate based on teams
+            for (var teamid of gameteams) {
+                let team = gameteams[teamid];
+                let playerids = team.players;
+                let teamplayers = [];
+                let teamratings = [];
+                for (var playerid of playerids) {
+                    let player = players[playerid];
+                    let playerRating = rating({
+                        mu: player.mu,
+                        sigma: player.sigma,
+                    });
+                    teamratings.push(playerRating);
+                    teamplayers.push(playerid);
+                }
+                ratings.push(teamratings);
+                teams.push(teamplayers);
+                rank.push(team.rank);
+                if (team?.score) score.push(team.score);
+            }
+
+            //calculate the results
+            if (score.length != rank.length) {
+                results = rate(ratings, { rank });
+            } else {
+                results = rate(ratings, { rank, score });
+            }
+
+            //update player ratings for saving to storage
+            for (var i = 0; i < teams.length; i++) {
+                let team = teams[i];
+                for (var j = 0; j < team.length; j++) {
+                    let shortid = team[j];
+                    let player = players[shortid];
+                    let playerRating = results[i][j];
+                    player.mu = playerRating.mu;
+                    player.sigma = playerRating.sigma;
+
+                    player.rating = ratingConfig.muRating(playerRating.mu);
+                }
+            }
+
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
+
+    calculateFFA(players) {
+        let rank = [];
+        let score = [];
+        let ratings = [];
+        let teams = [];
+
+        if (!players) return false;
+
+        try {
+            //create the arrays required by openskill library
+            //sync teams and players list to match with the ratings list
+            for (var shortid in players) {
+                let player = players[shortid];
+                let playerRating = rating({
+                    mu: player.mu,
+                    sigma: player.sigma,
+                });
+                ratings.push([playerRating]);
+                teams.push([shortid]);
+                rank.push(player.rank);
+                if (player.score) score.push(player.score);
+            }
+
+            //calculate the results
+            let results = null;
+            if (score.length != rank.length) {
+                results = rate(ratings, { rank });
+            } else {
+                results = rate(ratings, { rank, score });
+            }
+
+            //update player ratings for saving to storage
+            for (var i = 0; i < teams.length; i++) {
+                let team = teams[i];
+                for (var j = 0; j < team.length; j++) {
+                    let shortid = team[j];
+                    let player = players[shortid];
+                    let playerRating = results[i][j];
+                    player.mu = playerRating.mu;
+                    player.sigma = playerRating.sigma;
+                    player.rating = muRating(playerRating.mu);
+                }
+            }
+
+            return true;
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
+    }
+}
+
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+}
+
+function test() {
+    let r = new Rank();
+
+    let playerList = [];
+
+    //create players
+    for (var i = 0; i < 4; i++) {
+        let id = i;
+        let mu = 25;
+        let sigma = 5;
+        let player = {
+            id,
+            mu,
+            sigma,
+        };
+        playerList.push(player);
+    }
+
+    //fight players
+
+    for (var i = 0; i < 10; i++) {
+        let player1id = 1; //getRandomInt(0, 2);
+        let player2id = 2; //getRandomInt(2, 4);
+        if (player1id == player2id) {
+            i--;
+            continue;
+        }
+
+        let player1 = playerList[player1id];
+        let player2 = playerList[player2id];
+
+        let players = {};
+        players[player1id] = player1;
+        players[player2id] = player2;
+
+        if (i < 980) {
+            player1.rank = 1;
+            player2.rank = 2;
+            player1.score = 10;
+            player2.score = 50;
+        } else {
+            player2.rank = 1;
+            player1.rank = 2;
+            player2.score = 10;
+            player1.score = 50;
+        }
+
+        r.calculateFFA(players);
+    }
+
+    for (var i = 0; i < playerList.length; i++) {
+        console.log(
+            "Player [" +
+                i +
+                "] - mu:" +
+                playerList[i].mu +
+                ", sigma:" +
+                playerList[i].sigma
+        );
+    }
+}
+
+// test();
+
+export default new Rank();
