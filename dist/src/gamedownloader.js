@@ -7,7 +7,7 @@ class GameDownloader {
         // profiler.StartTime("downloadServerFiles.getRoomMeta");
         meta = meta || await storage.getRoomMeta(room_slug);
         // profiler.EndTime("downloadServerFiles.getRoomMeta");
-        // profiler.StartTime("downloadServerFiles.downloadGameJS");
+        // profiler.StartTime("downloadServerFiles.downloadGameJS"); 
         try {
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);
@@ -26,26 +26,44 @@ class GameDownloader {
             console.log('Error:', e);
         }
         // profiler.EndTime("downloadServerFiles.downloadGameJS");
-        if (!meta.db)
-            return;
-        // profiler.StartTime("downloadServerFiles.downloadDatabase");
-        try {
-            let key = meta.game_slug + '/server.db.' + meta.version + '.json';
-            let gameDatabase = storage.getGameDatabase(key);
-            if (!gameDatabase || gameDatabase.lastupdate !== meta.latest_tsupdate) {
-                gameDatabase = await this.downloadGameDatabase(key, meta);
-                gameDatabase.lastupdate = meta.latest_tsupdate;
-                if (!gameDatabase) {
-                    console.error("Database unable to be created for: ", action);
+        if (meta.settings) {
+            try {
+                let key = "g/" + meta.game_slug + '/client/settings.' + meta.version + '.json';
+                let gameSettings = await storage.getGameSetting(key);
+                if (!gameSettings || gameSettings.lastupdate !== meta.latest_tsupdate) {
+                    gameSettings = await this.downloadPublicJson(key, meta);
+                    gameSettings.lastupdate = meta.latest_tsupdate;
+                    if (!gameSettings) {
+                        console.error("Database unable to be created for: ", action);
+                    }
+                    storage.setGameSetting(key, gameSettings);
                 }
-                storage.setGameDatabase(key, gameDatabase);
+            }
+            catch (e) {
+                console.error("Error: Database unable to be created for: ", action);
+                console.log('Error:', e);
             }
         }
-        catch (e) {
-            console.error("Error: Database unable to be created for: ", action);
-            console.log('Error:', e);
+        if (meta.db) {
+            // profiler.StartTime("downloadServerFiles.downloadDatabase");
+            try {
+                let key = meta.game_slug + '/server.db.' + meta.version + '.json';
+                let gameDatabase = storage.getGameDatabase(key);
+                if (!gameDatabase || gameDatabase.lastupdate !== meta.latest_tsupdate) {
+                    gameDatabase = await this.downloadGameDatabase(key, meta);
+                    gameDatabase.lastupdate = meta.latest_tsupdate;
+                    if (!gameDatabase) {
+                        console.error("Database unable to be created for: ", action);
+                    }
+                    storage.setGameDatabase(key, gameDatabase);
+                }
+            }
+            catch (e) {
+                console.error("Error: Database unable to be created for: ", action);
+                console.log('Error:', e);
+            }
+            // profiler.EndTime("downloadServerFiles.downloadDatabase");
         }
-        // profiler.EndTime("downloadServerFiles.downloadDatabase");
     }
     async downloadGameJS(key, meta, isolate) {
         const js = await s3.downloadServerScript(key, meta);
@@ -54,6 +72,11 @@ class GameDownloader {
         const game = { script };
         //storage.setGameServer(key, game);
         return game;
+    }
+    async downloadPublicJson(key, meta) {
+        const jsStr = await s3.downloadPublicScript(key, meta);
+        const json = JSON.parse(jsStr);
+        return json;
     }
     async downloadGameDatabase(key, meta) {
         var json = await s3.downloadServerScript(key, meta);

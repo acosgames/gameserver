@@ -1,1 +1,1 @@
-{"version":3,"file":"gamequeue.d.ts","sourceRoot":"","sources":["../../src/gamequeue.ts"],"names":[],"mappings":"AAMA,cAAM,SAAS;;IAaX,KAAK;IAIL,YAAY,CAAC,MAAM,KAAA;IAqBb,UAAU;IA4CV,UAAU,CAAC,SAAS,KAAA;CA4D7B;;AAED,wBAA+B"}
+{"version":3,"file":"gamequeue.d.ts","sourceRoot":"","sources":["../../src/gamequeue.ts"],"names":[],"mappings":"AAMA,cAAM,SAAS;;IAaX,KAAK;IAIL,YAAY,CAAC,MAAM,KAAA;IAqBb,UAAU;IA4CV,UAAU,CAAC,SAAS,KAAA;CA8D7B;;AAED,wBAA+B"}

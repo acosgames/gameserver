@@ -89,8 +89,8 @@ class Rank {
                 storedPlayerRatings[roomRating.shortid] = roomRating;
             }
         }
-        for (var shortid in players) {
-            let player = players[shortid];
+        for (var player of players) {
+            let shortid = player.shortid;
             if (!(shortid in storedPlayerRatings)) {
                 storedPlayerRatings[shortid] = await ratings.findPlayerRating(shortid, game_slug);
             }
@@ -112,26 +112,24 @@ class Rank {
             playerRatings[shortid] = playerRating;
         }
         let lowestRank = 99999;
-        for (var shortid in players) {
-            let player = players[shortid];
+        for (var player of players) {
             if (player.rank < lowestRank)
                 lowestRank = player.rank;
         }
-        for (var shortid in players) {
-            let player = players[shortid];
+        for (var player of players) {
             if (typeof player.rank === "undefined") {
                 console.error("Player [" +
-                    shortid +
+                    player.shortid +
                     "] (" +
                     player.displayname +
                     ") is missing rank");
                 return;
             }
             if (player.rank == lowestRank) {
-                rankOne.push(storedPlayerRatings[shortid]);
+                rankOne.push(storedPlayerRatings[player.shortid]);
             }
             else {
-                rankOther.push(storedPlayerRatings[shortid]);
+                rankOther.push(storedPlayerRatings[player.shortid]);
             }
         }
         let isTied = false;
@@ -155,8 +153,8 @@ class Rank {
         //update player ratings from openskill mutation of playerRatings
         let ratingsList = [];
         let notifyInfo = [];
-        for (var shortid in players) {
-            let player = players[shortid];
+        for (var player of players) {
+            let shortid = player.shortid;
             if (!(shortid in playerRatings)) {
                 continue;
             }

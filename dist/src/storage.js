@@ -1,11 +1,13 @@
 import cache from 'shared/services/cache.js';
 import room from 'shared/services/room.js';
 import SortedSet from "redis-sorted-set";
+import { GameStatus, gs } from '@acosgames/framework';
 class Storage {
     constructor() {
         this.gameHistory = [];
         this.gameServers = {};
         this.gameDatabases = {};
+        this.gameSettings = {};
         // this.roomStates = {};
         // this.roomCache = new NodeCache({ stdTTL: 300, checkperiod: 150 });
         this.loaded = {};
@@ -97,6 +99,15 @@ class Storage {
     setGameDatabase(id, db) {
         this.gameDatabases[id] = db;
     }
+    getGameSettings() {
+        return this.gameSettings;
+    }
+    getGameSetting(id) {
+        return this.gameSettings[id];
+    }
+    setGameSetting(id, setting) {
+        this.gameSettings[id] = setting;
+    }
     async getRoomMeta(room_slug) {
         if (!room_slug)
             return null;
@@ -121,7 +132,7 @@ class Storage {
     async saveRoomState(type, meta, roomState) {
         let room_slug = meta.room_slug;
         if (type == "join" || type == "leave") {
-            let playerList = Object.keys(roomState.players);
+            let playerList = roomState.players; //Object.keys(roomState.players);
             try {
                 room.updateRoomPlayerCount(room_slug, playerList.length);
             }
@@ -134,10 +145,14 @@ class Storage {
     async cleanupRoom(meta) {
         try {
             let roomState = await this.getRoomState(meta.room_slug);
-            let players = roomState?.players;
-            if (players) {
-                for (var shortid in players) {
-                    cache.del(`rooms/${shortid}`);
+            if (roomState) {
+                let gamestate = gs(roomState);
+                let gameroom = gamestate.room();
+                let players = gameroom.playerMap;
+                if (players) {
+                    for (var shortid in players) {
+                        cache.del(`rooms/${shortid}`);
+                    }
                 }
             }
             Promise.all([
@@ -163,7 +178,7 @@ class Storage {
         //caching to avoid querying redis too much
         // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
         // if (nexttimer && nexttimer.length > 0) {
-        //     // console.log('nexttimer', nexttimer);
+        //     // console.log('nexttimer', nexttimer); 
         //     return nexttimer;
         // }
         let nexttimer = this.timerSet.range(0, 0, { withScores: true });
@@ -202,7 +217,7 @@ class Storage {
         let result = cache.zadd(gameserver_slug + "/timer", [roomTimer]);
         // console.log(result);
         this.timerSet.add(room_slug, epoch);
-        // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer');
+        // let nexttimer = cache.getLocal(gameserver_slug + '/nexttimer'); 
         // if (nexttimer && nexttimer.length > 0) {
         //     let found = false;
         //     for (var i = 0; i < nexttimer.length; i++) {
@@ -254,15 +269,18 @@ class Storage {
         // delete this.cache[room_slug + '/timer'];
         // await redis.del(room_slug + '/timer');
     }
-    makeGame(meta) {
+    makeGame(meta, gameSettings) {
         let roomState = {};
         if (roomState.killGame) {
             delete roomState["killGame"];
         }
         roomState.room = {
-            next_id: null,
-            next_action: null,
-            events: {},
+            // next_id: null,
+            // next_action: null,
+            status: GameStatus.none,
+            _players: {},
+            _teams: {},
+            events: [],
             starttime: Date.now(),
             timeend: 0,
             timesec: 0,
@@ -273,18 +291,20 @@ class Storage {
         // roomState.prev = {};
         // roomState.events = {};
         // roomState.timer = { sequence: 0 };
-        roomState.players = {};
-        if (meta?.teams) {
-            roomState.teams = {};
-            for (const team of meta.teams) {
-                roomState.teams[team.team_slug] = {
+        roomState.players = [];
+        // roomState.teams = [];
+        if (gameSettings?.teams) {
+            roomState.teams = [];
+            for (const team of gameSettings.teams) {
+                roomState.teams.push({
+                    team_slug: team.team_slug,
                     name: team.team_name,
                     color: team.color,
                     order: team.team_order,
                     players: [],
                     rank: 0,
                     score: 0,
-                };
+                });
             }
         }
         return roomState;

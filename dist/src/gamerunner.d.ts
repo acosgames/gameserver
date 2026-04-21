@@ -6,7 +6,7 @@ declare class GameRunner {
     createScriptGlobals(ctx: any, room_slug: any): {
         gamelog: () => void;
         gameerror: () => void;
-        save: ivm.Callback<(newGame: any) => void>;
+        commit: ivm.Callback<(newGame: any) => void>;
         random: ivm.Callback<() => any>;
         game: ivm.Callback<() => any>;
         actions: ivm.Callback<() => any>;
@@ -15,9 +15,9 @@ declare class GameRunner {
         ignore: ivm.Callback<() => void>;
     };
     killRoom(room_slug: any, meta: any, errors?: any[]): Promise<void>;
-    runAction(incomingActions: any, gameScript: any, meta: any): Promise<any>;
-    runActionInternal(incomingActions: any, gameScript: any, meta: any): Promise<boolean>;
-    runActionEx(action: any, gameScript: any, meta: any, ctx: any): Promise<false | {
+    runAction(incomingActions: any, gameScript: any, meta: any, gameSettings: any): Promise<any>;
+    runActionInternal(incomingActions: any, gameScript: any, meta: any, gameSettings: any): Promise<boolean>;
+    runActionEx(action: any, gameScript: any, meta: any, ctx: any, gameSettings: any): Promise<false | {
         type: string;
         isGameover: boolean;
     }>;
@@ -30,7 +30,7 @@ declare class GameRunner {
     onGameover(meta: any, ctx: any): Promise<void>;
     runScript(script: any, room_slug: any, ctx: any): boolean;
     onPlayerReady(action: any, ctx: any): void;
-    onPlayerJoin(action: any, ctx: any): void;
+    onPlayerJoin(action: any, ctx: any, gameSettings: any): void;
 }
 declare const _default: GameRunner;
 export default _default;

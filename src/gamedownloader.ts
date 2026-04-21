@@ -2,6 +2,7 @@ import ObjectStorageService from "shared/services/objectstorage.js";
 import storage from "./storage.js";
 // const { VMScript } = require('vm2');
 import profiler from "shared/util/profiler.js";
+import { GameSettings } from "shared/types/game.js";
 
 const s3 = new ObjectStorageService();
 
@@ -14,7 +15,7 @@ class GameDownloader {
         meta = meta || await storage.getRoomMeta(room_slug);
         // profiler.EndTime("downloadServerFiles.getRoomMeta");
 
-        // profiler.StartTime("downloadServerFiles.downloadGameJS");
+        // profiler.StartTime("downloadServerFiles.downloadGameJS"); 
         try {
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
 
@@ -36,26 +37,43 @@ class GameDownloader {
         // profiler.EndTime("downloadServerFiles.downloadGameJS");
 
 
-        if (!meta.db)
-            return;
-
-        // profiler.StartTime("downloadServerFiles.downloadDatabase");
-        try {
-            let key = meta.game_slug + '/server.db.' + meta.version + '.json';
-            let gameDatabase = storage.getGameDatabase(key);
-            if (!gameDatabase || gameDatabase.lastupdate !== meta.latest_tsupdate) {
-                gameDatabase = await this.downloadGameDatabase(key, meta);
-                gameDatabase.lastupdate = meta.latest_tsupdate;
-                if (!gameDatabase) {
-                    console.error("Database unable to be created for: ", action);
+        if (meta.settings) {
+            try {
+                let key = "g/" + meta.game_slug + '/client/settings.' + meta.version + '.json';
+                let gameSettings: GameSettings = await storage.getGameSetting(key);
+                if (!gameSettings || gameSettings.lastupdate !== meta.latest_tsupdate) {
+                    gameSettings = await this.downloadPublicJson(key, meta) as GameSettings;
+                    gameSettings.lastupdate = meta.latest_tsupdate;
+                    if (!gameSettings) {
+                        console.error("Database unable to be created for: ", action);
+                    }
+                    storage.setGameSetting(key, gameSettings);
                 }
-                storage.setGameDatabase(key, gameDatabase);
+            } catch (e) {
+                console.error("Error: Database unable to be created for: ", action);
+                console.log('Error:', e);
             }
-        } catch (e) {
-            console.error("Error: Database unable to be created for: ", action);
-            console.log('Error:', e);
         }
-        // profiler.EndTime("downloadServerFiles.downloadDatabase");
+
+        if (meta.db) {
+            // profiler.StartTime("downloadServerFiles.downloadDatabase");
+            try {
+                let key = meta.game_slug + '/server.db.' + meta.version + '.json';
+                let gameDatabase = storage.getGameDatabase(key);
+                if (!gameDatabase || gameDatabase.lastupdate !== meta.latest_tsupdate) {
+                    gameDatabase = await this.downloadGameDatabase(key, meta);
+                    gameDatabase.lastupdate = meta.latest_tsupdate;
+                    if (!gameDatabase) {
+                        console.error("Database unable to be created for: ", action);
+                    }
+                    storage.setGameDatabase(key, gameDatabase);
+                }
+            } catch (e) {
+                console.error("Error: Database unable to be created for: ", action);
+                console.log('Error:', e);
+            }
+            // profiler.EndTime("downloadServerFiles.downloadDatabase");
+        }
     }
 
     async downloadGameJS(key, meta, isolate) {
@@ -67,6 +85,12 @@ class GameDownloader {
         const game = { script };
         //storage.setGameServer(key, game);
         return game;
+    }
+
+    async downloadPublicJson(key, meta) {
+        const jsStr = await s3.downloadPublicScript(key, meta);
+        const json = JSON.parse(jsStr);
+        return json;
     }
 
     async downloadGameDatabase(key, meta) {

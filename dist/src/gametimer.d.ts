@@ -7,7 +7,7 @@ declare class GameTimer {
         timesec: number;
     };
     processDeadlines(): Promise<void>;
-    processDeadlinesEX(next: any): Promise<{}>;
+    processDeadlinesEX(next: any): Promise<any>;
     removeRoomDeadline(room_slug: any): Promise<void>;
     addRoomDeadline(room_slug: any, timeend: any): Promise<void>;
 }

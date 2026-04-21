@@ -1,3 +1,4 @@
+import { GameStatus, gs } from "@acosgames/framework";
 import events from "./events.js";
 import storage from "./storage.js";
 
@@ -15,7 +16,7 @@ class GameTimer {
     calculateTimeleft(roomState) {
         if (!roomState || !roomState.room || !roomState.room.timeend) return 0;
 
-        let deadline = roomState.room.timeend;
+        let deadline = roomState.room.starttime + roomState.room.timeend;
         let now = new Date().getTime();
         let timeleft = deadline - now;
 
@@ -23,25 +24,15 @@ class GameTimer {
     }
 
     processTimelimit(gamestate) {
-        // if (!room) {
-        //     timer = { sequence: 0 };
-        // }
-        let timer = gamestate?.timer;
-        if (!timer || !timer.set) return;
-        if (typeof timer.set === "undefined") return;
+     
+        const game = gs(gamestate);
+        const timer = game.room().timerSet;
+        const timesec = Math.min(3_000_000, Math.max(1, timer));
+        const now = Date.now();
+        const timeend = (now + timesec * 1000) - game.room().startTime;
 
-        let timesec = Math.min(3000000, Math.max(1, timer.set));
-        // let sequence = timer.sequence || 0;
-        let now = new Date().getTime();
-        let timeend = now + timesec * 1000;
-        // let timeleft = deadline - now;
-
-        // let room = gamestate?.room;
-        // room.timeend = timeend;
-        // room.timesec = timesec;
-        // timer.data = [deadline, seconds];
-        // timer.sequence = sequence + 1;
-        delete gamestate.timer;
+        if( gamestate?.room?.timeset ) 
+            delete gamestate.room.timeset;
         return { timeend, timesec };
     }
 
@@ -69,10 +60,11 @@ class GameTimer {
             }
 
             let now = new Date().getTime();
-            if (now < next.score) return false;
+            if (now < next.score) 
+                return false;
 
-            let action = {};
-            if (!roomState.room?.status || roomState?.room?.status == "none") {
+            let action = null;
+            if (!roomState.room?.status || roomState?.room?.status == GameStatus.none) {
                 console.log("timer ended: unkonwn");
                 action = {
                     type: "noshow",
@@ -80,30 +72,37 @@ class GameTimer {
                 };
             } else {
                 switch (roomState.room?.status) {
-                    case "pregame":
+                    case GameStatus.waiting:
+                        console.log("timer ended: waiting");
+                        action = {
+                            type: "noshow",
+                            room_slug,
+                        };
+                        break;
+                    case GameStatus.pregame:
                         console.log("timer ended: pregame");
                         action = {
                             type: "noshow",
                             room_slug,
                         };
                         break;
-                    case "starting":
+                    case GameStatus.starting:
                         console.log("timer ended: starting");
                         action = {
                             type: "gamestart",
                             room_slug,
                         };
                         break;
-                    case "gamestart":
+                    case GameStatus.gamestart:
                         console.log("timer ended: gamestart");
                         action = {
                             type: "skip",
                             room_slug,
                         };
                         break;
-                    case "gameover":
-                    case "gamecancelled":
-                    case "gameerror":
+                    case GameStatus.gameover:
+                    case GameStatus.gamecancelled:
+                    case GameStatus.gameerror:
                         return;
                 }
             }

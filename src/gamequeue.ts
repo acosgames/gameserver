@@ -118,6 +118,8 @@ class GameQueue {
                 let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
                 let gameServer = storage.getGameServer(key);
 
+                let gameSettings = storage.getGameSetting("g/" + meta.game_slug + '/client/settings.' + meta.version + '.json');
+
                 if (!gameServer) {
                     console.log("tryRunGame missing gameserver", key);
                     break;
@@ -125,7 +127,7 @@ class GameQueue {
 
                 // profiler.StartTime("GameQueue.tryRunGame.runAction");
                 action = this.roomActions[room_slug].dequeue();
-                let passed = await gamerunner.runAction(action, gameServer.script, meta);
+                let passed = await gamerunner.runAction(action, gameServer.script, meta, gameSettings);
                 if (!passed) {
                     this.roomActions[room_slug].clear();
                     break;

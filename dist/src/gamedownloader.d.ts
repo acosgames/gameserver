@@ -3,6 +3,7 @@ declare class GameDownloader {
     downloadGameJS(key: any, meta: any, isolate: any): Promise<{
         script: any;
     }>;
+    downloadPublicJson(key: any, meta: any): Promise<any>;
     downloadGameDatabase(key: any, meta: any): Promise<{
         db: any;
     }>;

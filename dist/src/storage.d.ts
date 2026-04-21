@@ -1,3 +1,4 @@
+import { GameSettings } from 'shared/types/game.js';
 declare class Storage {
     constructor();
     clearRooms(): void;
@@ -19,6 +20,9 @@ declare class Storage {
     getGameDatabases(): any;
     getGameDatabase(id: any): any;
     setGameDatabase(id: any, db: any): void;
+    getGameSettings(): any;
+    getGameSetting(id: any): any;
+    setGameSetting(id: any, setting: any): void;
     getRoomMeta(room_slug: any): Promise<import("shared/types/room.js").RoomMeta>;
     getRoomState(room_slug: any): Promise<unknown>;
     saveRoomState(type: any, meta: any, roomState: any): Promise<void>;
@@ -32,7 +36,7 @@ declare class Storage {
     removeTimer(room_slug: any): Promise<any>;
     setRoomDeadline(room_slug: any, data: any): Promise<void>;
     clearRoomDeadline(room_slug: any): Promise<void>;
-    makeGame(meta: any): {};
+    makeGame(meta: any, gameSettings?: GameSettings): {};
 }
 declare const _default: Storage;
 export default _default;
