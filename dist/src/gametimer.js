@@ -1,4 +1,4 @@
-import { GameStatus, gs } from "@acosgames/framework";
+import { GameStatus } from "@acosgames/framework";
 import events from "./events.js";
 import storage from "./storage.js";
 class GameTimer {
@@ -18,14 +18,15 @@ class GameTimer {
         let timeleft = deadline - now;
         return timeleft;
     }
-    processTimelimit(gamestate) {
-        const game = gs(gamestate);
-        const timer = game.room().timerSet;
+    processTimelimit(game) {
+        const timer = game.timerSet;
         const timesec = Math.min(3000000, Math.max(1, timer));
         const now = Date.now();
-        const timeend = (now + timesec * 1000) - game.room().startTime;
-        if (gamestate?.room?.timeset)
-            delete gamestate.room.timeset;
+        const timeend = (now + timesec * 1000) - game.startTime;
+        if (game.timeset) {
+            let room = game.raw().room;
+            delete room.timeset;
+        }
         return { timeend, timesec };
     }
     async processDeadlines() {

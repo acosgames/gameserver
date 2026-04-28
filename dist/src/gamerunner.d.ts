@@ -1,4 +1,5 @@
 import ivm from "isolated-vm";
+import { GameStateReader } from "@acosgames/framework";
 declare class GameRunner {
     constructor();
     getIsolate(): ivm.Isolate;
@@ -23,11 +24,11 @@ declare class GameRunner {
     }>;
     validateGlobalResult(result: any): boolean;
     executeScript(gameScript: any, action: any, meta: any, ctx: any): Promise<boolean>;
-    addEvent(type: any, payload: any, ctx: any): void;
-    onLeave(action: any, ctx: any): void;
-    onJoin(room_slug: any, action: any, ctx: any): void;
-    onReady(meta: any, ctx: any): void;
-    onGameover(meta: any, ctx: any): Promise<void>;
+    addEvent(type: any, payload: any, game: any): void;
+    onLeave(action: any, game: GameStateReader): void;
+    onJoin(room_slug: any, action: any, game: GameStateReader): void;
+    onReady(meta: any, game: GameStateReader): void;
+    onGameover(meta: any, game: GameStateReader): Promise<void>;
     runScript(script: any, room_slug: any, ctx: any): boolean;
     onPlayerReady(action: any, ctx: any): void;
     onPlayerJoin(action: any, ctx: any, gameSettings: any): void;

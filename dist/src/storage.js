@@ -146,9 +146,8 @@ class Storage {
         try {
             let roomState = await this.getRoomState(meta.room_slug);
             if (roomState) {
-                let gamestate = gs(roomState);
-                let gameroom = gamestate.room();
-                let players = gameroom.playerMap;
+                let game = gs(roomState);
+                let players = game.playerMap;
                 if (players) {
                     for (var shortid in players) {
                         cache.del(`rooms/${shortid}`);

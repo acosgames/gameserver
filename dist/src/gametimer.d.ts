@@ -1,8 +1,9 @@
+import { GameStateReader } from "@acosgames/framework";
 declare class GameTimer {
     constructor();
     setup(): void;
     calculateTimeleft(roomState: any): number;
-    processTimelimit(gamestate: any): {
+    processTimelimit(game: GameStateReader): {
         timeend: number;
         timesec: number;
     };
