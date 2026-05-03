@@ -314,10 +314,12 @@ class GameRunner {
         }
 
         let prevStatus = game.status;
-        let starttime = game.startTime ?? Date.now();
+        let now = Date.now();
+        let starttime = game.startTime ?? now;
 
         game.setSlug(room_slug);
-        game.setEndTime(0);
+        
+        // game.setEndTime(0);
 
         // ctx.roomState.room = {
         //     room_slug: meta.room_slug,
@@ -450,8 +452,11 @@ class GameRunner {
 
             let responseType = "update";
 
-            result.setDeadline(ctx.roomState?.room?.timeend || 0);
-            result.setTimerSeconds(ctx.roomState?.room?.timesec || 0);
+            
+            let now = Date.now()
+            
+            // result.setDeadline(ctx.roomState?.room?.timeend || 0);
+            // result.setTimerSeconds(ctx.roomState?.room?.timesec || 0);
 
             if (action.type == "join") {
                 responseType = "join";
@@ -463,7 +468,6 @@ class GameRunner {
                 this.onReady(meta, result);
             }
 
-            let now = Date.now()
             // if (globalResult?.room?.status != "gamestart")
 
             // globalResult.timer.set = 100000;
@@ -484,6 +488,8 @@ class GameRunner {
             //     next_action: ctx.result?.room?.next_action,
             // };
 
+            result.setUpdatedAt(now - result.startTime);
+
             if (result.timerSet) {
                 let { timeend, timesec } = gametimer.processTimelimit(result);
                 gametimer.addRoomDeadline(room_slug, result.startTime + timeend);
@@ -501,6 +507,7 @@ class GameRunner {
             // ctx.result.room = Object.assign({}, ctx?.result?.room ?? {}, room);
 
 
+
             if (isGameover) {
                 result.setStatus(isGameover);
                 result.setEndTime(now - result.startTime);
@@ -513,7 +520,6 @@ class GameRunner {
                     await this.onGameover(meta, result);
                 } 
             }
-
             // profiler.EndTime('WorkerManagerLoop');
             // console.timeEnd('ActionLoop');
             return { type: responseType, isGameover };

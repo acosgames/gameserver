@@ -269,9 +269,10 @@ class GameRunner {
             return false;
         }
         let prevStatus = game.status;
-        let starttime = game.startTime ?? Date.now();
+        let now = Date.now();
+        let starttime = game.startTime ?? now;
         game.setSlug(room_slug);
-        game.setEndTime(0);
+        // game.setEndTime(0);
         // ctx.roomState.room = {
         //     room_slug: meta.room_slug,
         //     sequence: ctx.roomState?.room?.sequence || 0,
@@ -395,8 +396,9 @@ class GameRunner {
             }
             // console.log("isGameover: ", isGameover, globalResult.room?.events);
             let responseType = "update";
-            result.setDeadline(ctx.roomState?.room?.timeend || 0);
-            result.setTimerSeconds(ctx.roomState?.room?.timesec || 0);
+            let now = Date.now();
+            // result.setDeadline(ctx.roomState?.room?.timeend || 0);
+            // result.setTimerSeconds(ctx.roomState?.room?.timesec || 0);
             if (action.type == "join") {
                 responseType = "join";
                 this.onJoin(room_slug, action, result);
@@ -408,7 +410,6 @@ class GameRunner {
             else if (action.type == "ready") {
                 this.onReady(meta, result);
             }
-            let now = Date.now();
             // if (globalResult?.room?.status != "gamestart")
             // globalResult.timer.set = 100000;
             // let room = {
@@ -427,6 +428,7 @@ class GameRunner {
             //     next_team: ctx.result?.room?.next_team,
             //     next_action: ctx.result?.room?.next_action,
             // };
+            result.setUpdatedAt(now - result.startTime);
             if (result.timerSet) {
                 let { timeend, timesec } = gametimer.processTimelimit(result);
                 gametimer.addRoomDeadline(room_slug, result.startTime + timeend);
