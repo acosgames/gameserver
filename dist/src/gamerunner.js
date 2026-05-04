@@ -333,9 +333,9 @@ class GameRunner {
                     break;
                 case "leave":
                     // let players = ctx.roomState.players || {};
-                    let player = game.player(action.user.shortid); // || players[action.user.shortid];
+                    let player = game.player(action.user.id); // || players[action.user.shortid];
                     if (player) {
-                        player.setIngame(false);
+                        player.setInGame(false);
                     }
                     // if (meta.maxplayers > 1) room.removePlayerRoom(action.user.shortid, room_slug);
                     break;

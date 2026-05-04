@@ -12,14 +12,14 @@ class GameDownloader {
             let key = meta.game_slug + '/server.bundle.' + meta.version + '.js';
             let gameServer = storage.getGameServer(key);
             console.log("typeof tsupdate: ", typeof gameServer?.lastupdate, typeof meta?.latest_tsupdate);
-            // if (!gameServer || gameServer.lastupdate !== meta.latest_tsupdate) {
-            gameServer = await this.downloadGameJS(key, meta, isolate);
-            gameServer.lastupdate = meta.latest_tsupdate;
-            if (!gameServer || !gameServer.script) {
-                console.error("Script unable to be created for: ", action);
+            if (!gameServer || gameServer.lastupdate !== meta.latest_tsupdate) {
+                gameServer = await this.downloadGameJS(key, meta, isolate);
+                gameServer.lastupdate = meta.latest_tsupdate;
+                if (!gameServer || !gameServer.script) {
+                    console.error("Script unable to be created for: ", action);
+                }
+                storage.setGameServer(key, gameServer);
             }
-            storage.setGameServer(key, gameServer);
-            // }
         }
         catch (e) {
             console.error("Error: Script unable to be created for: ", action);
